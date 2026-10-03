@@ -54,12 +54,12 @@ app.use(
 
 app.use("/api", router);
 
-// 託管前端打包後的靜態檔案 (confession-community/dist)
+// 1. 託管前端打包後的靜態檔案 (confession-community/dist)
 const clientDistPath = path.resolve(__dirname, "../../confession-community/dist");
 app.use(express.static(clientDistPath));
 
-// 所有未匹配到的 GET 請求，統一回傳前端 index.html
-app.get("*", (req, res) => {
+// 2. 在 Express v5 下使用 {*splat} 匹配所有未定義的路由
+app.get("{*splat}", (req, res) => {
   res.sendFile(path.join(clientDistPath, "index.html"));
 });
 
