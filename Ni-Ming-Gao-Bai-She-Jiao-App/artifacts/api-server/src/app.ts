@@ -4,6 +4,7 @@ import express, {
   type Request,
   type Response,
 } from "express";
+import fs from "fs";
 import path from "path";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
@@ -54,14 +55,23 @@ app.use(
 
 app.use("/api", router);
 
-// 1. 託管前端打包後的靜態檔案 (confession-community/dist)
-const clientDistPath = path.resolve(__dirname, "../../confession-community/dist");
-app.use(express.static(clientDistPath));
+// 1. 託管前端打包後的靜態檔案 (confession-community/dist/public)
+const clientDistPath = path.resolve(__dirname, "../../confession-community/dist/public");
+const indexPath = path.join(clientDistPath, "index.html");
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
 
-// 2. 在 Express v5 下使用 {*splat} 匹配所有未定義的路由
-app.get("{*splat}", (req, res) => {
-  res.sendFile(path.join(clientDistPath, "index.html"));
-});
+  app.get("{*splat}", (req, res, next) => {
+    // 如果是 API 請求，跳過靜態檔案處理
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {      res.status(404).send("Frontend build index.html not found.");
+    }
+  });
+}
 
 app.use(
   (error: unknown, req: Request, res: Response, next: NextFunction): void => {
