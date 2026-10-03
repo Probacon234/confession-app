@@ -1,5 +1,5 @@
 import { getAuth } from "@clerk/express";
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   CreateConfessionBody,
@@ -9,7 +9,6 @@ import {
   CreateConfessionResponse,
   GetConfessionParams,
   GetConfessionResponse,
-  GetCommunitySummaryResponse,
   ListConfessionCommentsParams,
   ListConfessionCommentsResponse,
   ListConfessionsQueryParams,
@@ -29,15 +28,9 @@ import {
 } from "@workspace/db";
 
 const router: IRouter = Router();
-type ConfessionRow = typeof confessionsTable.$inferSelect;
-const MALAYSIA_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
-
-function userIdFor(req: Request): string | null {
-  return getAuth(req).userId ?? null;
-}
 
 function requireUserId(req: Request, res: Response): string | null {
-  const userId = userIdFor(req);
+  const userId = getAuth(req).userId;
   if (!userId) {
     res.status(401).json({ error: "Sign-in required" });
     return null;
@@ -45,209 +38,261 @@ function requireUserId(req: Request, res: Response): string | null {
   return userId;
 }
 
-function confessionIdParam(req: Request): unknown {
-  const raw = req.params.id;
-  return Array.isArray(raw) ? raw[0] : raw;
+function trimContent(body: unknown): unknown {
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "content" in body &&
+    typeof body.content === "string"
+  ) {
+    return { ...body, content: body.content.trim() };
+  }
+  return body;
 }
 
-async function formatConfessions(
-  rows: ConfessionRow[],
-  viewerId: string | null,
-) {
-  if (rows.length === 0) return [];
+async function findConfession(id: number) {
+  const [confession] = await db
+    .select({
+      id: confessionsTable.id,
+      content: confessionsTable.content,
+      category: confessionsTable.category,
+      createdAt: confessionsTable.createdAt,
+    })
+    .from(confessionsTable)
+    .where(eq(confessionsTable.id, id));
 
-  const ids = rows.map((row) => row.id);
-  const [likeCounts, commentCounts, viewerLikes] = await Promise.all([
+  return confession ?? null;
+}
+
+async function getEngagement(
+  confessionId: number,
+  userId: string | null,
+): Promise<{ likes: number; commentsCount: number; likedByMe: boolean }> {
+  const [likesResult, commentsResult, userLike] = await Promise.all([
     db
-      .select({
-        confessionId: confessionLikesTable.confessionId,
-        total: count(),
-      })
+      .select({ value: count() })
       .from(confessionLikesTable)
-      .where(inArray(confessionLikesTable.confessionId, ids))
-      .groupBy(confessionLikesTable.confessionId),
+      .where(eq(confessionLikesTable.confessionId, confessionId)),
     db
-      .select({
-        confessionId: confessionCommentsTable.confessionId,
-        total: count(),
-      })
+      .select({ value: count() })
       .from(confessionCommentsTable)
-      .where(inArray(confessionCommentsTable.confessionId, ids))
-      .groupBy(confessionCommentsTable.confessionId),
-    viewerId
+      .where(eq(confessionCommentsTable.confessionId, confessionId)),
+    userId
       ? db
           .select({ confessionId: confessionLikesTable.confessionId })
           .from(confessionLikesTable)
           .where(
             and(
-              inArray(confessionLikesTable.confessionId, ids),
-              eq(confessionLikesTable.userId, viewerId),
+              eq(confessionLikesTable.confessionId, confessionId),
+              eq(confessionLikesTable.userId, userId),
             ),
           )
       : Promise.resolve([]),
   ]);
 
-  const likesByConfession = new Map(
-    likeCounts.map((item) => [item.confessionId, item.total]),
-  );
-  const commentsByConfession = new Map(
-    commentCounts.map((item) => [item.confessionId, item.total]),
-  );
-  const likedIds = new Set(viewerLikes.map((item) => item.confessionId));
-
-  return rows.map((row) => ({
-    id: row.id,
-    content: row.content,
-    category: row.category as
-      "love" | "friendship" | "family" | "school" | "work" | "life",
-    createdAt: row.createdAt,
-    likes: likesByConfession.get(row.id) ?? 0,
-    commentsCount: commentsByConfession.get(row.id) ?? 0,
-    likedByMe: likedIds.has(row.id),
-  }));
+  return {
+    likes: likesResult[0].value,
+    commentsCount: commentsResult[0].value,
+    likedByMe: userLike.length > 0,
+  };
 }
 
-async function findConfession(id: number): Promise<ConfessionRow | undefined> {
-  const [row] = await db
-    .select()
-    .from(confessionsTable)
-    .where(eq(confessionsTable.id, id))
-    .limit(1);
-  return row;
+async function confessionResponse(
+  confession: NonNullable<Awaited<ReturnType<typeof findConfession>>>,
+  userId: string | null,
+) {
+  return { ...confession, ...(await getEngagement(confession.id, userId)) };
+}
+
+function sendValidationError(res: Response, message: string): void {
+  res.status(400).json({ error: message });
 }
 
 router.get("/confessions", async (req, res): Promise<void> => {
   const parsed = ListConfessionsQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    sendValidationError(res, parsed.error.message);
     return;
   }
 
-  const filters = parsed.data.category
-    ? eq(confessionsTable.category, parsed.data.category)
-    : undefined;
-  const rows =
-    parsed.data.sort === "popular"
+  const likesByConfession = db
+    .select({
+      confessionId: confessionLikesTable.confessionId,
+      total: count().as("total"),
+    })
+    .from(confessionLikesTable)
+    .groupBy(confessionLikesTable.confessionId)
+    .as("likes_by_confession");
+  const commentsByConfession = db
+    .select({
+      confessionId: confessionCommentsTable.confessionId,
+      total: count().as("total"),
+    })
+    .from(confessionCommentsTable)
+    .groupBy(confessionCommentsTable.confessionId)
+    .as("comments_by_confession");
+
+  const rows = await db
+    .select({
+      id: confessionsTable.id,
+      content: confessionsTable.content,
+      category: confessionsTable.category,
+      createdAt: confessionsTable.createdAt,
+      likes: sql<number>`coalesce(${likesByConfession.total}, 0)::int`,
+      commentsCount: sql<number>`coalesce(${commentsByConfession.total}, 0)::int`,
+    })
+    .from(confessionsTable)
+    .leftJoin(
+      likesByConfession,
+      eq(likesByConfession.confessionId, confessionsTable.id),
+    )
+    .leftJoin(
+      commentsByConfession,
+      eq(commentsByConfession.confessionId, confessionsTable.id),
+    )
+    .where(
+      parsed.data.category
+        ? eq(confessionsTable.category, parsed.data.category)
+        : undefined,
+    )
+    .orderBy(
+      parsed.data.sort === "popular"
+        ? desc(sql`coalesce(${likesByConfession.total}, 0)`)
+        : desc(confessionsTable.createdAt),
+      desc(confessionsTable.createdAt),
+      desc(confessionsTable.id),
+    );
+
+  const userId = getAuth(req).userId;
+  const likedConfessionIds =
+    userId && rows.length > 0
       ? await db
-          .select()
-          .from(confessionsTable)
-          .where(filters)
-          .orderBy(
-            desc(
-              sql`(select count(*) from ${confessionLikesTable} where ${confessionLikesTable.confessionId} = ${confessionsTable.id}) + (select count(*) from ${confessionCommentsTable} where ${confessionCommentsTable.confessionId} = ${confessionsTable.id})`,
+          .select({ confessionId: confessionLikesTable.confessionId })
+          .from(confessionLikesTable)
+          .where(
+            and(
+              eq(confessionLikesTable.userId, userId),
+              inArray(
+                confessionLikesTable.confessionId,
+                rows.map((row) => row.id),
+              ),
             ),
-            desc(confessionsTable.createdAt),
           )
-          .limit(60)
-      : await db
-          .select()
-          .from(confessionsTable)
-          .where(filters)
-          .orderBy(desc(confessionsTable.createdAt))
-          .limit(60);
-  const confessions = await formatConfessions(rows, userIdFor(req));
-  res.json(ListConfessionsResponse.parse(confessions));
+      : [];
+  const likedIds = new Set(likedConfessionIds.map((like) => like.confessionId));
+
+  res.json(
+    ListConfessionsResponse.parse(
+      rows.map((row) => ({
+        ...row,
+        likedByMe: likedIds.has(row.id),
+      })),
+    ),
+  );
 });
 
 router.post("/confessions", async (req, res): Promise<void> => {
-  const userId = userIdFor(req);
+  const userId = requireUserId(req, res);
+  if (!userId) return;
 
-  const parsed = CreateConfessionBody.safeParse(req.body);
-  if (!parsed.success || !parsed.data.content.trim()) {
-    res.status(400).json({
-      error: parsed.success
-        ? "Confession content cannot be blank"
-        : parsed.error.message,
-    });
+  const parsed = CreateConfessionBody.safeParse(trimContent(req.body));
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error.message);
     return;
   }
 
-  const [row] = await db
+  const [created] = await db
     .insert(confessionsTable)
-    .values({
-      content: parsed.data.content.trim(),
-      category: parsed.data.category,
-      authorId: userId,
-    })
-    .returning();
-  const [confession] = await formatConfessions([row], userId);
-  res.status(201).json(CreateConfessionResponse.parse(confession));
+    .values({ ...parsed.data, authorId: userId })
+    .returning({
+      id: confessionsTable.id,
+      content: confessionsTable.content,
+      category: confessionsTable.category,
+      createdAt: confessionsTable.createdAt,
+    });
+
+  res
+    .status(201)
+    .json(
+      CreateConfessionResponse.parse(await confessionResponse(created, userId)),
+    );
 });
 
 router.get("/confessions/:id", async (req, res): Promise<void> => {
-  const params = GetConfessionParams.safeParse({ id: confessionIdParam(req) });
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const parsed = GetConfessionParams.safeParse(req.params);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error.message);
     return;
   }
 
-  const row = await findConfession(params.data.id);
-  if (!row) {
+  const confession = await findConfession(parsed.data.id);
+  if (!confession) {
     res.status(404).json({ error: "Confession not found" });
     return;
   }
 
-  const [confession] = await formatConfessions([row], userIdFor(req));
-  res.json(GetConfessionResponse.parse(confession));
+  res.json(
+    GetConfessionResponse.parse(
+      await confessionResponse(confession, getAuth(req).userId),
+    ),
+  );
 });
 
 router.post("/confessions/:id/like", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const params = ToggleConfessionLikeParams.safeParse({
-    id: confessionIdParam(req),
-  });
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const parsed = ToggleConfessionLikeParams.safeParse(req.params);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error.message);
     return;
   }
 
-  if (!(await findConfession(params.data.id))) {
+  const confession = await findConfession(parsed.data.id);
+  if (!confession) {
     res.status(404).json({ error: "Confession not found" });
     return;
   }
 
   const condition = and(
-    eq(confessionLikesTable.confessionId, params.data.id),
+    eq(confessionLikesTable.confessionId, confession.id),
     eq(confessionLikesTable.userId, userId),
   );
-  const [existing] = await db
-    .select()
-    .from(confessionLikesTable)
+  const [removed] = await db
+    .delete(confessionLikesTable)
     .where(condition)
-    .limit(1);
-  if (existing) {
-    await db.delete(confessionLikesTable).where(condition);
-  } else {
+    .returning({ confessionId: confessionLikesTable.confessionId });
+
+  let liked = false;
+  if (!removed) {
     await db
       .insert(confessionLikesTable)
-      .values({ confessionId: params.data.id, userId })
+      .values({ confessionId: confession.id, userId })
       .onConflictDoNothing();
+    liked = true;
   }
-
-  const [total] = await db
+  const [likesResult] = await db
     .select({ value: count() })
     .from(confessionLikesTable)
-    .where(eq(confessionLikesTable.confessionId, params.data.id));
+    .where(eq(confessionLikesTable.confessionId, confession.id));
+
   res.json(
     ToggleConfessionLikeResponse.parse({
-      liked: !existing,
-      likes: total.value,
+      liked,
+      likes: likesResult.value,
     }),
   );
 });
 
 router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
-  const params = CreateConfessionCommentParams.safeParse({
-    id: confessionIdParam(req),
-  });
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+  const parsed = ListConfessionCommentsParams.safeParse(req.params);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error.message);
     return;
   }
 
-  if (!(await findConfession(params.data.id))) {
+  const confession = await findConfession(parsed.data.id);
+  if (!confession) {
     res.status(404).json({ error: "Confession not found" });
     return;
   }
@@ -260,9 +305,9 @@ router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
       createdAt: confessionCommentsTable.createdAt,
     })
     .from(confessionCommentsTable)
-    .where(eq(confessionCommentsTable.confessionId, params.data.id))
-    .orderBy(desc(confessionCommentsTable.createdAt))
-    .limit(100);
+    .where(eq(confessionCommentsTable.confessionId, confession.id))
+    .orderBy(confessionCommentsTable.createdAt, confessionCommentsTable.id);
+
   res.json(ListConfessionCommentsResponse.parse(comments));
 });
 
@@ -270,30 +315,28 @@ router.post("/confessions/:id/comments", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const params = ListConfessionCommentsParams.safeParse({
-    id: confessionIdParam(req),
-  });
+  const params = CreateConfessionCommentParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendValidationError(res, params.error.message);
     return;
   }
-  const parsed = CreateConfessionCommentBody.safeParse(req.body);
-  if (!parsed.success || !parsed.data.content.trim()) {
-    res.status(400).json({
-      error: parsed.success ? "Comment cannot be blank" : parsed.error.message,
-    });
+  const body = CreateConfessionCommentBody.safeParse(trimContent(req.body));
+  if (!body.success) {
+    sendValidationError(res, body.error.message);
     return;
   }
 
-  if (!(await findConfession(params.data.id))) {
+  const confession = await findConfession(params.data.id);
+  if (!confession) {
     res.status(404).json({ error: "Confession not found" });
     return;
   }
-  const [comment] = await db
+
+  const [created] = await db
     .insert(confessionCommentsTable)
     .values({
-      confessionId: params.data.id,
-      content: parsed.data.content.trim(),
+      confessionId: confession.id,
+      content: body.data.content,
       authorId: userId,
     })
     .returning({
@@ -302,26 +345,27 @@ router.post("/confessions/:id/comments", async (req, res): Promise<void> => {
       content: confessionCommentsTable.content,
       createdAt: confessionCommentsTable.createdAt,
     });
-  res.status(201).json(CreateConfessionCommentResponse.parse(comment));
+
+  res.status(201).json(CreateConfessionCommentResponse.parse(created));
 });
 
 router.post("/confessions/:id/reports", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const params = ReportConfessionParams.safeParse({
-    id: confessionIdParam(req),
-  });
+  const params = ReportConfessionParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    sendValidationError(res, params.error.message);
     return;
   }
-  const parsed = ReportConfessionBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+  const body = ReportConfessionBody.safeParse(req.body);
+  if (!body.success) {
+    sendValidationError(res, body.error.message);
     return;
   }
-  if (!(await findConfession(params.data.id))) {
+
+  const confession = await findConfession(params.data.id);
+  if (!confession) {
     res.status(404).json({ error: "Confession not found" });
     return;
   }
@@ -329,39 +373,14 @@ router.post("/confessions/:id/reports", async (req, res): Promise<void> => {
   await db
     .insert(confessionReportsTable)
     .values({
-      confessionId: params.data.id,
+      confessionId: confession.id,
       userId,
-      reason: parsed.data.reason,
-      details: parsed.data.details?.trim() || null,
+      reason: body.data.reason,
+      details: body.data.details?.trim() || null,
     })
     .onConflictDoNothing();
-  res.status(201).json(ReportConfessionResponse.parse({ success: true }));
-});
 
-router.get("/community/summary", async (_req, res): Promise<void> => {
-  const nowInMalaysia = new Date(Date.now() + MALAYSIA_UTC_OFFSET_MS);
-  const midnightUtc = new Date(
-    Date.UTC(
-      nowInMalaysia.getUTCFullYear(),
-      nowInMalaysia.getUTCMonth(),
-      nowInMalaysia.getUTCDate(),
-    ) - MALAYSIA_UTC_OFFSET_MS,
-  );
-  const [[confessionTotal], [todayTotal], [likeTotal]] = await Promise.all([
-    db.select({ value: count() }).from(confessionsTable),
-    db
-      .select({ value: count() })
-      .from(confessionsTable)
-      .where(gte(confessionsTable.createdAt, midnightUtc)),
-    db.select({ value: count() }).from(confessionLikesTable),
-  ]);
-  res.json(
-    GetCommunitySummaryResponse.parse({
-      totalConfessions: confessionTotal.value,
-      confessionsToday: todayTotal.value,
-      totalLikes: likeTotal.value,
-    }),
-  );
+  res.status(201).json(ReportConfessionResponse.parse({ success: true }));
 });
 
 export default router;
