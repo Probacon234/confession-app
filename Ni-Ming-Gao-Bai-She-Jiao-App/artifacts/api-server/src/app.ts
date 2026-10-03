@@ -4,6 +4,7 @@ import express, {
   type Request,
   type Response,
 } from "express";
+import path from "path";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
@@ -52,6 +53,15 @@ app.use(
 );
 
 app.use("/api", router);
+
+// 託管前端打包後的靜態檔案 (confession-community/dist)
+const clientDistPath = path.resolve(__dirname, "../../confession-community/dist");
+app.use(express.static(clientDistPath));
+
+// 所有未匹配到的 GET 請求，統一回傳前端 index.html
+app.get("*", (req, res) => {
+  res.sendFile(path.join(clientDistPath, "index.html"));
+});
 
 app.use(
   (error: unknown, req: Request, res: Response, next: NextFunction): void => {
