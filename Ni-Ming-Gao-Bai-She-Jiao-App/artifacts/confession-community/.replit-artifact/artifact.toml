@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "心事牆"
+description = "一個讓使用者匿名分享告白與心事、瀏覽公開投稿並透過按讚和留言互動的社群 App，提供登入入口與 Google 登入選項。"
+version = "1.0.0"
+id = "artifacts/confession-community"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20744
+
+[services.development]
+run = "pnpm --filter @workspace/confession-community run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/confession-community", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/confession-community/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20744"
+BASE_PATH = "/"

@@ -1,0 +1,443 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: confessions
+    description: Anonymous community posts
+  - name: comments
+    description: Replies to confessions
+  - name: community
+    description: Community activity summaries
+  - name: moderation
+    description: Private report review tools
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /confessions:
+    get:
+      operationId: listConfessions
+      tags: [confessions]
+      summary: List public confessions
+      parameters:
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [latest, popular]
+            default: latest
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [love, friendship, family, school, work, life]
+      responses:
+        "200":
+          description: Public confession feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfessionList"
+    post:
+      operationId: createConfession
+      tags: [confessions]
+      summary: Publish an anonymous confession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConfessionInput"
+      responses:
+        "201":
+          description: Published confession
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Confession"
+        "401":
+          description: Sign-in required
+  /confessions/{id}:
+    get:
+      operationId: getConfession
+      tags: [confessions]
+      summary: Get one confession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Confession
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Confession"
+        "404":
+          description: Confession not found
+  /confessions/{id}/like:
+    post:
+      operationId: toggleConfessionLike
+      tags: [confessions]
+      summary: Toggle a like on a confession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current like state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+        "401":
+          description: Sign-in required
+        "404":
+          description: Confession not found
+  /confessions/{id}/comments:
+    get:
+      operationId: listConfessionComments
+      tags: [comments]
+      summary: List comments on a confession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentList"
+        "404":
+          description: Confession not found
+    post:
+      operationId: createConfessionComment
+      tags: [comments]
+      summary: Comment on a confession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "401":
+          description: Sign-in required
+        "404":
+          description: Confession not found
+  /confessions/{id}/reports:
+    post:
+      operationId: reportConfession
+      tags: [confessions]
+      summary: Report a confession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Report received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionResult"
+        "401":
+          description: Sign-in required
+        "404":
+          description: Confession not found
+  /community/summary:
+    get:
+      operationId: getCommunitySummary
+      tags: [community]
+      summary: Get community activity summary
+      responses:
+        "200":
+          description: Community totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunitySummary"
+  /moderation/access:
+    get:
+      operationId: getModerationAccess
+      tags: [moderation]
+      summary: Check whether the signed-in user can moderate reports
+      responses:
+        "200":
+          description: Moderation access status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationAccess"
+        "401":
+          description: Sign-in required
+        "503":
+          description: Moderator access is not configured or unavailable
+  /moderation/reports:
+    get:
+      operationId: listModerationReports
+      tags: [moderation]
+      summary: List confession reports for moderators
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [new, reviewed, all]
+            default: new
+      responses:
+        "200":
+          description: Moderation reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationReportList"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Moderator access required
+        "503":
+          description: Moderator access is not configured or unavailable
+  /moderation/reports/{reportId}:
+    patch:
+      operationId: updateModerationReport
+      tags: [moderation]
+      summary: Update a report's review status
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModerationReportUpdate"
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationReport"
+        "400":
+          description: Invalid report or status
+        "401":
+          description: Sign-in required
+        "403":
+          description: Moderator access required
+        "404":
+          description: Report not found
+        "503":
+          description: Moderator access is not configured or unavailable
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Confession:
+      type: object
+      properties:
+        id:
+          type: integer
+        content:
+          type: string
+        category:
+          type: string
+          enum: [love, friendship, family, school, work, life]
+        createdAt:
+          type: string
+          format: date-time
+        likes:
+          type: integer
+        commentsCount:
+          type: integer
+        likedByMe:
+          type: boolean
+      required: [id, content, category, createdAt, likes, commentsCount, likedByMe]
+    ConfessionList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Confession"
+    ConfessionInput:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 1200
+        category:
+          type: string
+          enum: [love, friendship, family, school, work, life]
+      required: [content, category]
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        confessionId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, confessionId, content, createdAt]
+    CommentList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Comment"
+    CommentInput:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required: [content]
+    LikeResult:
+      type: object
+      properties:
+        liked:
+          type: boolean
+        likes:
+          type: integer
+      required: [liked, likes]
+    ReportInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum: [harassment, spam, harmful, other]
+        details:
+          type: string
+          maxLength: 500
+      required: [reason]
+    ActionResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+    ModerationAccess:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        newReports:
+          type: integer
+      required: [allowed, newReports]
+    ModerationReport:
+      type: object
+      properties:
+        id:
+          type: integer
+        confessionId:
+          type: integer
+        reason:
+          type: string
+          enum: [harassment, spam, harmful, other]
+        details:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [new, reviewed]
+        reportedAt:
+          type: string
+          format: date-time
+        confessionContent:
+          type: string
+        confessionCategory:
+          type: string
+          enum: [love, friendship, family, school, work, life]
+        confessionCreatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - confessionId
+        - reason
+        - details
+        - status
+        - reportedAt
+        - confessionContent
+        - confessionCategory
+        - confessionCreatedAt
+    ModerationReportList:
+      type: array
+      items:
+        $ref: "#/components/schemas/ModerationReport"
+    ModerationReportUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [new, reviewed]
+      required: [status]
+    CommunitySummary:
+      type: object
+      properties:
+        totalConfessions:
+          type: integer
+        confessionsToday:
+          type: integer
+        totalLikes:
+          type: integer
+      required: [totalConfessions, confessionsToday, totalLikes]
+

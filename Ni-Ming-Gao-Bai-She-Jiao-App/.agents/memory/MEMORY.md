@@ -1,0 +1,1 @@
+- [Patch application behavior](patch-application.md) — if small existing files repeatedly reject exact-context patches, replace the inspected file rather than retrying similar hunks.
