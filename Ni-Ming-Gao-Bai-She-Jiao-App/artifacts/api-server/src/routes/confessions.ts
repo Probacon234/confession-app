@@ -150,8 +150,7 @@ router.get("/confessions", async (req, res): Promise<void> => {
 });
 
 router.post("/confessions", async (req, res): Promise<void> => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
+  const userId = userIdFor(req);
 
   const parsed = CreateConfessionBody.safeParse(req.body);
   if (!parsed.success || !parsed.data.content.trim()) {
