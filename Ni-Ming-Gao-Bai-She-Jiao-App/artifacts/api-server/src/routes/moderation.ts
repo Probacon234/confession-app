@@ -170,4 +170,55 @@ router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> =>
   res.json(UpdateModerationReportResponse.parse(report));
 });
 
+// 1. Delete confession post by ID
+router.delete("/posts/:id", async (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) {
+    return res.status(400).json({ message: "Invalid post ID" });
+  }
+
+  try {
+    // Delete target post from database
+    await db.delete(confessionsTable).where(eq(confessionsTable.id, postId));
+    
+    // Optionally resolve reports linked to this post
+    await db
+      .update(confessionReportsTable)
+      .set({ status: "resolved" })
+      .where(eq(confessionReportsTable.confessionId, postId));
+
+    return res.json({ success: true, message: "Post deleted successfully" });
+  } catch (error) {
+    logger.error({ error }, "Failed to delete post");
+    return res.status(500).json({ message: "Failed to delete post" });
+  }
+});
+
+// 2. Ban user via Clerk Server SDK
+router.post("/users/ban", async (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ message: "Missing userId" });
+  }
+
+  try {
+    // Ban user using Clerk SDK
+    await clerkClient.users.banUser(userId);
+    return res.json({ success: true, message: "User banned successfully" });
+  } catch (error) {
+    logger.error({ error }, "Failed to ban user");
+    return res.status(500).json({ message: "Failed to ban user" });
+  }
+});
+
 export default router;

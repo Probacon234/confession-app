@@ -47,6 +47,56 @@ function ReportedItem({ report }: { report: any }) {
     }
   };
 
+  // Delete post directly via API
+  const handleDeletePost = async () => {
+    if (!window.confirm("Are you sure you want to delete this post permanently?")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/moderation/posts/${report.confessionId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        alert("Post deleted successfully.");
+        queryClient.invalidateQueries();
+      } else {
+        const data = await res.json();
+        alert("Failed to delete post: " + (data.message || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Delete failed: " + (err as Error).message);
+    }
+  };
+
+  // Ban user directly via API
+  const handleBanUser = async () => {
+    const authorId = (confession as any)?.authorId || (confession as any)?.userId;
+    if (!authorId) {
+      alert("Unable to ban: Author ID not found for this post.");
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to ban user ${authorId}?`)) {
+      return;
+    }
+    try {
+      const res = await fetch("/api/moderation/users/ban", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: authorId }),
+      });
+      if (res.ok) {
+        alert("User banned successfully.");
+        queryClient.invalidateQueries();
+      } else {
+        const data = await res.json();
+        alert("Failed to ban user: " + (data.message || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Ban failed: " + (err as Error).message);
+    }
+  };
+
   return (
     <div className="p-4 border rounded-lg shadow-sm bg-white border-red-100 mb-4">
       <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-2">
@@ -87,7 +137,19 @@ function ReportedItem({ report }: { report: any }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-2 justify-end pt-2 border-t">
+      <div className="flex gap-2 justify-end pt-2 border-t flex-wrap">
+        <button
+          onClick={handleDeletePost}
+          className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+        >
+          🗑️ Delete Post
+        </button>
+        <button
+          onClick={handleBanUser}
+          className="px-3 py-1 bg-black text-white rounded text-xs hover:bg-gray-800"
+        >
+          🚫 Ban User
+        </button>
         <button
           onClick={() => handleUpdateStatus("resolved")}
           disabled={updateReportMutation.isPending}
