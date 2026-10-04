@@ -1,3 +1,4 @@
+import moderationRouter from "./routes/moderation";
 import express, {
   type Express,
   type NextFunction,
@@ -41,6 +42,7 @@ app.use(
 );
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 app.use(cors({ credentials: true, origin: true }));
+app.use("/api/moderation", moderationRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
