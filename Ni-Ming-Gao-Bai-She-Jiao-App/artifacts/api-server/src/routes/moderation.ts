@@ -171,6 +171,36 @@ router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> =>
 });
 
 // 1. Delete confession post by ID
+// Delete confession post by ID
+router.delete("/confessions/:id", async (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const postId = Number(req.params.id);
+  if (isNaN(postId)) {
+    return res.status(400).json({ message: "Invalid post ID" });
+  }
+
+  try {
+    // Delete target confession from database
+    await db.delete(confessionsTable).where(eq(confessionsTable.id, postId));
+
+    // Mark corresponding reports as resolved
+    await db
+      .update(confessionReportsTable)
+      .set({ status: "resolved" })
+      .where(eq(confessionReportsTable.confessionId, postId));
+
+    return res.json({ success: true, message: "Post deleted successfully" });
+  } catch (error) {
+    logger.error({ error }, "Failed to delete post");
+    return res.status(500).json({ message: "Failed to delete post" });
+  }
+});
+
+// Also support /posts/:id path as alias
 router.delete("/posts/:id", async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -183,10 +213,7 @@ router.delete("/posts/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    // Delete target post from database
     await db.delete(confessionsTable).where(eq(confessionsTable.id, postId));
-    
-    // Optionally resolve reports linked to this post
     await db
       .update(confessionReportsTable)
       .set({ status: "resolved" })
@@ -196,6 +223,27 @@ router.delete("/posts/:id", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({ error }, "Failed to delete post");
     return res.status(500).json({ message: "Failed to delete post" });
+  }
+});
+
+// Ban user route
+router.post("/users/ban", async (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  if (!auth.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ message: "Missing userId" });
+  }
+
+  try {
+    await clerkClient.users.banUser(userId);
+    return res.json({ success: true, message: "User banned successfully" });
+  } catch (error) {
+    logger.error({ error }, "Failed to ban user");
+    return res.status(500).json({ message: "Failed to ban user" });
   }
 });
 

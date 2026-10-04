@@ -48,12 +48,14 @@ function ReportedItem({ report }: { report: any }) {
   };
 
   // Delete post directly via API
+  // Delete post directly via API
   const handleDeletePost = async () => {
     if (!window.confirm("Are you sure you want to delete this post permanently?")) {
       return;
     }
     try {
-      const res = await fetch(`/api/moderation/posts/${report.confessionId}`, {
+      // Try moderation delete route first
+      let res = await fetch(`/api/moderation/confessions/${report.confessionId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -61,19 +63,25 @@ function ReportedItem({ report }: { report: any }) {
         },
       });
 
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        if (res.ok) {
-          alert("Post deleted successfully.");
-          queryClient.invalidateQueries();
-        } else {
-          alert("Failed to delete post: " + (data.message || "Unknown error"));
-        }
+      // Fallback to /api/moderation/posts/:id if first path returned 404
+      if (res.status === 404) {
+        res = await fetch(`/api/moderation/posts/${report.confessionId}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+        });
+      }
+
+      if (res.ok) {
+        alert("Post deleted successfully.");
+        queryClient.invalidateQueries();
       } else {
-        if (res.ok) {
-          alert("Post deleted successfully.");
-          queryClient.invalidateQueries();
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          alert("Failed to delete post: " + (data.message || "Unknown error"));
         } else {
           alert("Failed to delete post (HTTP " + res.status + ")");
         }
