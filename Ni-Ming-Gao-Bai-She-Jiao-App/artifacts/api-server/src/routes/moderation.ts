@@ -200,7 +200,7 @@ router.delete("/confessions/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Complete cascade deletion handler for confessions
+// Cascade delete handler for confessions and all related entities
 const handleDeleteConfession = async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -213,25 +213,27 @@ const handleDeleteConfession = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Delete associated reports
+    // 1. Delete associated reports first
     await db
       .delete(confessionReportsTable)
       .where(eq(confessionReportsTable.confessionId, postId));
 
-    // 2. Delete target confession post
+    // 2. Delete the target confession post
     await db
       .delete(confessionsTable)
       .where(eq(confessionsTable.id, postId));
 
     return res.json({ success: true, message: "Post deleted successfully" });
   } catch (error: any) {
-    logger.error({ error }, "Failed to delete post");
-    // Return explicit error text so front-end can display exact issue if it fails
+    logger.error({ error, postId }, "Failed to delete post");
     return res.status(500).json({ 
-      message: error?.message || error?.detail || "Database cascade deletion error" 
+      message: error?.detail || error?.message || "Failed to delete post due to database constraint." 
     });
   }
 };
+
+router.delete("/confessions/:id", handleDeleteConfession);
+router.delete("/posts/:id", handleDeleteConfession);
 
 router.delete("/confessions/:id", handleDeleteConfession);
 router.delete("/posts/:id", handleDeleteConfession);

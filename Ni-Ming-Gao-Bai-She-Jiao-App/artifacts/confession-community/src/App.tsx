@@ -47,15 +47,13 @@ function ReportedItem({ report }: { report: any }) {
     }
   };
 
-  // Delete post directly via API
-  // Delete post directly via API
+ // Delete post directly via API with detailed error logging
   const handleDeletePost = async () => {
     if (!window.confirm("Are you sure you want to delete this post permanently?")) {
       return;
     }
     try {
-      // Try moderation delete route first
-      let res = await fetch(`/api/moderation/confessions/${report.confessionId}`, {
+      let res = await fetch(`${window.location.origin}/api/moderation/confessions/${report.confessionId}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -63,9 +61,8 @@ function ReportedItem({ report }: { report: any }) {
         },
       });
 
-      // Fallback to /api/moderation/posts/:id if first path returned 404
       if (res.status === 404) {
-        res = await fetch(`/api/moderation/posts/${report.confessionId}`, {
+        res = await fetch(`${window.location.origin}/api/moderation/posts/${report.confessionId}`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -74,17 +71,19 @@ function ReportedItem({ report }: { report: any }) {
         });
       }
 
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (e) {
+        // Response wasn't JSON
+      }
+
       if (res.ok) {
         alert("Post deleted successfully.");
         queryClient.invalidateQueries();
       } else {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const data = await res.json();
-          alert("Failed to delete post: " + (data.message || "Unknown error"));
-        } else {
-          alert("Failed to delete post (HTTP " + res.status + ")");
-        }
+        const errorMsg = data?.message || data?.error || `HTTP ${res.status} Error`;
+        alert("Failed to delete post: " + errorMsg);
       }
     } catch (err) {
       alert("Delete failed: " + (err as Error).message);
