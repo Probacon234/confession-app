@@ -200,8 +200,6 @@ router.delete("/confessions/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Complete cascade deletion handler inside a database transaction
-// Complete cascade deletion handler inside a database transaction
 const handleDeleteConfession = async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -214,14 +212,17 @@ const handleDeleteConfession = async (req: Request, res: Response) => {
   }
 
   try {
-    // 使用 db.transaction 包裹级联删除操作
     await db.transaction(async (tx) => {
-      // 1. 先删除关联的举报记录
+      // 1. 先清理举报记录
       await tx
         .delete(confessionReportsTable)
         .where(eq(confessionReportsTable.confessionId, postId));
 
-      // 2. 再删除告白贴文本身
+      // 2. 如果你的 schema 里有评论表或点赞表，请取消对应注释并添加：
+      // await tx.delete(confessionCommentsTable).where(eq(confessionCommentsTable.confessionId, postId));
+      // await tx.delete(confessionLikesTable).where(eq(confessionLikesTable.confessionId, postId));
+
+      // 3. 最后删除告白贴文主记录
       await tx
         .delete(confessionsTable)
         .where(eq(confessionsTable.id, postId));
