@@ -201,10 +201,11 @@ router.delete("/confessions/:id", async (req: Request, res: Response) => {
 });
 
 // Also support /posts/:id path as alias
-router.delete("/posts/:id", async (req: Request, res: Response) => {
+// Delete confession post by ID (Handles cascade foreign keys to prevent 500 error)
+const handleDeleteConfession = async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
-    return res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Unauthorized: Please log in." });
   }
 
   const postId = Number(req.params.id);
@@ -213,18 +214,28 @@ router.delete("/posts/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    await db.delete(confessionsTable).where(eq(confessionsTable.id, postId));
+    // 1. Delete associated reports first to satisfy database foreign keys
     await db
-      .update(confessionReportsTable)
-      .set({ status: "resolved" })
+      .delete(confessionReportsTable)
       .where(eq(confessionReportsTable.confessionId, postId));
 
+    // 2. Delete the target confession post
+    await db
+      .delete(confessionsTable)
+      .where(eq(confessionsTable.id, postId));
+
     return res.json({ success: true, message: "Post deleted successfully" });
-  } catch (error) {
+  } catch (error: any) {
     logger.error({ error }, "Failed to delete post");
-    return res.status(500).json({ message: "Failed to delete post" });
+    return res.status(500).json({ 
+      message: error?.message || "Failed to delete post due to database error." 
+    });
   }
-});
+};
+
+// Register routes for both endpoints
+router.delete("/confessions/:id", handleDeleteConfession);
+router.delete("/posts/:id", handleDeleteConfession);
 
 // Ban user route
 router.post("/users/ban", async (req: Request, res: Response) => {
