@@ -34,24 +34,24 @@ function ReportedItem({ report }: { report: any }) {
   return (
     <div className="p-4 border rounded-lg shadow-sm bg-white border-red-100">
       <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-2">
-        <span>举报 ID: {report.id}</span>
-        <span>被举报帖子 ID: {report.confessionId}</span>
+        <span>Report ID: {report.id}</span>
+        <span>Reported Post ID: {report.confessionId}</span>
       </div>
 
       {/* 举报原因 */}
       <div className="mb-3 bg-red-50 p-2 rounded text-sm">
-        <span className="font-bold text-red-600">举报原因：</span>
+        <span className="font-bold text-red-600">Report Reason:</span>
         <span className="text-red-800">{report.reason}</span>
         {report.details && (
-          <p className="text-gray-600 text-xs mt-1">补充说明: {report.details}</p>
+          <p className="text-gray-600 text-xs mt-1">Additional Details: {report.details}</p>
         )}
       </div>
 
       {/* 对应的贴文内容 */}
       <div className="bg-gray-50 p-3 rounded border">
-        <div className="text-xs font-bold text-gray-500 mb-1">📄 贴文内容：</div>
+        <div className="text-xs font-bold text-gray-500 mb-1">📄 Reported Post Content</div>
         {isLoading ? (
-          <div className="text-xs text-gray-400">正在加载贴文详情...</div>
+          <div className="text-xs text-gray-400">Loading post details...</div>
         ) : confession ? (
           <div>
             <p className="text-gray-800 text-sm whitespace-pre-wrap">
@@ -77,14 +77,14 @@ function ModerationPage() {
   const { data: reportsData, isLoading: reportsLoading } = useListModerationReports({});
 
   if (accessLoading || reportsLoading) {
-    return <div className="p-8 text-center">加载中...</div>;
+    return <div className="p-8 text-center">Loading...</div>;
   }
 
   const accessResult = access as any;
   if (!accessResult?.allowed) {
     return (
       <div className="p-8 text-center text-red-500">
-        无访问权限。请确认你的账号邮箱已加入 CONFESSION_MODERATOR_EMAILS 环境变量中。
+        Access denied. Please ensure your account email address is added to the CONFESSION_MODERATOR_EMAILS environment variable.
       </div>
     );
   }
@@ -93,9 +93,9 @@ function ModerationPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">CONFESSIONMIIT 举报管理后台</h1>
+      <h1 className="text-2xl font-bold mb-6">CONFESSIONMIIT Report Management Backend</h1>
       {!Array.isArray(reports) || reports.length === 0 ? (
-        <p className="text-gray-500">目前没有任何被举报的帖子。</p>
+        <p className="text-gray-500">Currently, there are no reported posts.</p>
       ) : (
         <div>
           {reports.map((report: any) => (
