@@ -251,13 +251,21 @@ function HomePage() {
 
       void (async () => {
         try {
-          const token = await getToken();
+          const token = await getToken({ skipCache: true });
+          
+          if (!token) {
+            console.error('No token fetched');
+            openSignIn();
+            return;
+          }
+
+          console.log('Sending token:', token);
 
           const res = await fetch('/api/confessions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+              'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify(data),
           });
@@ -267,15 +275,17 @@ function HomePage() {
             setNotice('Your words have found a place on the wall.');
             cache.invalidateQueries({ queryKey: getListConfessionsQueryKey() });
           } else {
-            console.error('Failed to post confession:', res.statusText);
+            const errorText = await res.text();
+            console.error('401 Error response:', res.status, errorText);
           }
         } catch (err) {
-          console.error('Error sending confession request:', err);
+          console.error('Fetch error:', err);
         }
       })();
     }}
   />
 )}
+
     {reportId !== null && <ReportModal id={reportId} close={() => setReportId(null)} onSuccess={() => setNotice('Thank you. Your report has been received with care.')} />}
   </div>;
 }
