@@ -4,10 +4,21 @@ import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import {
-  useCreateConfession, useCreateConfessionComment, useGetCommunitySummary,
-  useGetConfession, useHealthCheck, useListConfessionComments, useListConfessions, useReportConfession,
-  useToggleConfessionLike, getListConfessionsQueryKey, getGetConfessionQueryKey,
-  getListConfessionCommentsQueryKey, getGetCommunitySummaryQueryKey,
+  useCreateConfession,
+  useCreateConfessionComment,
+  useGetCommunitySummary,
+  useGetConfession,
+  useHealthCheck,
+  useListConfessionComments,
+  useListConfessions,
+  useReportConfession,
+  useToggleConfessionLike,
+  useGetModerationAccess,
+  useListModerationReports,
+  getListConfessionsQueryKey,
+  getGetConfessionQueryKey,
+  getListConfessionCommentsQueryKey,
+  getGetCommunitySummaryQueryKey,
 } from '@workspace/api-client-react';
 import type { ConfessionCategory, ReportInputReason } from '@workspace/api-client-react';
 import { ArrowDown, ArrowLeft, ArrowRight, Check, ChevronDown, Feather, Flag, Heart, Menu, MessageCircle, PenLine, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
@@ -16,6 +27,48 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+
+function ModerationPage() {
+  const { data: access, isLoading: accessLoading } = useGetModerationAccess();
+  const { data: reportsData, isLoading: reportsLoading } = useListModerationReports({});
+
+  if (accessLoading || reportsLoading) {
+    return <div className="p-8 text-center">加载中...</div>;
+  }
+
+  const accessResult = access as any;
+  if (accessResult?.access !== "allowed" && accessResult?.status !== "allowed") {
+    return (
+      <div className="p-8 text-center text-red-500">
+        无访问权限。请确认你的账号邮箱已加入 CONFESSION_MODERATOR_EMAILS 环境变量中。
+      </div>
+    );
+  }
+
+  const reports = (reportsData as any)?.reports || (reportsData as any) || [];
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">CONFESSIONMIIT 举报管理后台</h1>
+      {!Array.isArray(reports) || reports.length === 0 ? (
+        <p className="text-gray-500">目前没有任何被举报的帖子。</p>
+      ) : (
+        <div className="space-y-4">
+          {reports.map((report: any) => (
+            <div key={report.id} className="p-4 border rounded-lg shadow-sm bg-white">
+              <div className="text-sm text-gray-500 mb-2">
+                举报 ID: {report.id} | 被举报帖子 ID: {report.confessionId}
+              </div>
+              <p className="font-semibold text-red-600 mb-1">原因: {report.reason}</p>
+              {report.details && <p className="text-gray-700 mb-2">补充说明: {report.details}</p>}
+              <div className="text-xs text-gray-400">状态: {report.status}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -461,6 +514,7 @@ function ClerkProviderWithRoutes() {
         <Route path="/sign-in/*?" component={SignInPage} />
         <Route path="/sign-up/*?" component={SignUpPage} />
         <Route path="/user-portal" component={UserPortalRoute} />
+        <Route path="/moderation" component={ModerationPage} />
         <Route path="/confessions/:id" component={ConfessionPage} />
         <Route component={NotFound} />
       </Switch></PageErrorBoundary>
