@@ -244,21 +244,36 @@ function HomePage() {
     error={Boolean(create.error)}
     pending={create.isPending}
     onSubmit={(data) => {
-      if (!isSignedIn) {
-        openSignIn();
-        return;
-      }
-      getToken().then((token) => {
-        (create.mutate as any)(
-          { data },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+  if (!isSignedIn) {
+    openSignIn();
+    return;
+  }
+
+  void (async () => {
+    try {
+      const token = await getToken();
+
+      const res = await fetch('/api/confessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
       });
-    }}
+
+      if (res.ok) {
+        setComposeOpen(false);
+        setNotice('Your words have found a place on the wall.');
+        cache.invalidateQueries({ queryKey: getListConfessionsQueryKey() });
+      } else {
+        console.error('Failed to post confession:', res.statusText);
+      }
+    } catch (err) {
+      console.error('Error sending confession request:', err);
+    }
+  })();
+}}
   />
 )}
     {reportId !== null && <ReportModal id={reportId} close={() => setReportId(null)} onSuccess={() => setNotice('Thank you. Your report has been received with care.')} />}
