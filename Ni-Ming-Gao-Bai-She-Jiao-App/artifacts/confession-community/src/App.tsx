@@ -28,6 +28,50 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 
+function ReportedItem({ report }: { report: any }) {
+  const { data: confession, isLoading } = useGetConfession(report.confessionId);
+
+  return (
+    <div className="p-4 border rounded-lg shadow-sm bg-white border-red-100">
+      <div className="flex justify-between items-center text-xs text-gray-400 mb-2 border-b pb-2">
+        <span>举报 ID: {report.id}</span>
+        <span>被举报帖子 ID: {report.confessionId}</span>
+      </div>
+
+      {/* 举报原因 */}
+      <div className="mb-3 bg-red-50 p-2 rounded text-sm">
+        <span className="font-bold text-red-600">举报原因：</span>
+        <span className="text-red-800">{report.reason}</span>
+        {report.details && (
+          <p className="text-gray-600 text-xs mt-1">补充说明: {report.details}</p>
+        )}
+      </div>
+
+      {/* 对应的贴文内容 */}
+      <div className="bg-gray-50 p-3 rounded border">
+        <div className="text-xs font-bold text-gray-500 mb-1">📄 贴文内容：</div>
+        {isLoading ? (
+          <div className="text-xs text-gray-400">正在加载贴文详情...</div>
+        ) : confession ? (
+          <div>
+            <p className="text-gray-800 text-sm whitespace-pre-wrap">
+              {(confession as any).content || (confession as any).text || "（内容为空）"}
+            </p>
+            <div className="mt-2 text-xs text-gray-400 flex gap-4">
+              {(confession as any).category && <span>分类: {(confession as any).category}</span>}
+              {(confession as any).createdAt && (
+                <span>发布时间: {new Date((confession as any).createdAt).toLocaleString()}</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-red-400">（该贴文已被删除或不存在）</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ModerationPage() {
   const { data: access, isLoading: accessLoading } = useGetModerationAccess();
   const { data: reportsData, isLoading: reportsLoading } = useListModerationReports({});
@@ -37,7 +81,6 @@ function ModerationPage() {
   }
 
   const accessResult = access as any;
-  // 精确匹配后端返回的 allowed: true
   if (!accessResult?.allowed) {
     return (
       <div className="p-8 text-center text-red-500">
@@ -54,16 +97,9 @@ function ModerationPage() {
       {!Array.isArray(reports) || reports.length === 0 ? (
         <p className="text-gray-500">目前没有任何被举报的帖子。</p>
       ) : (
-        <div className="space-y-4">
+        <div>
           {reports.map((report: any) => (
-            <div key={report.id} className="p-4 border rounded-lg shadow-sm bg-white">
-              <div className="text-sm text-gray-500 mb-2">
-                举报 ID: {report.id} | 被举报帖子 ID: {report.confessionId}
-              </div>
-              <p className="font-semibold text-red-600 mb-1">原因: {report.reason}</p>
-              {report.details && <p className="text-gray-700 mb-2">补充说明: {report.details}</p>}
-              <div className="text-xs text-gray-400">状态: {report.status}</div>
-            </div>
+            <ReportedItem key={report.id} report={report} />
           ))}
         </div>
       )}
