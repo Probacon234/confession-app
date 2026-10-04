@@ -55,14 +55,28 @@ function ReportedItem({ report }: { report: any }) {
     try {
       const res = await fetch(`/api/moderation/posts/${report.confessionId}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
       });
-      if (res.ok) {
-        alert("Post deleted successfully.");
-        queryClient.invalidateQueries();
-      } else {
+
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
-        alert("Failed to delete post: " + (data.message || "Unknown error"));
+        if (res.ok) {
+          alert("Post deleted successfully.");
+          queryClient.invalidateQueries();
+        } else {
+          alert("Failed to delete post: " + (data.message || "Unknown error"));
+        }
+      } else {
+        if (res.ok) {
+          alert("Post deleted successfully.");
+          queryClient.invalidateQueries();
+        } else {
+          alert("Failed to delete post (HTTP " + res.status + ")");
+        }
       }
     } catch (err) {
       alert("Delete failed: " + (err as Error).message);
@@ -82,15 +96,29 @@ function ReportedItem({ report }: { report: any }) {
     try {
       const res = await fetch("/api/moderation/users/ban", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
         body: JSON.stringify({ userId: authorId }),
       });
-      if (res.ok) {
-        alert("User banned successfully.");
-        queryClient.invalidateQueries();
-      } else {
+
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
-        alert("Failed to ban user: " + (data.message || "Unknown error"));
+        if (res.ok) {
+          alert("User banned successfully.");
+          queryClient.invalidateQueries();
+        } else {
+          alert("Failed to ban user: " + (data.message || "Unknown error"));
+        }
+      } else {
+        if (res.ok) {
+          alert("User banned successfully.");
+          queryClient.invalidateQueries();
+        } else {
+          alert("Failed to ban user (HTTP " + res.status + ")");
+        }
       }
     } catch (err) {
       alert("Ban failed: " + (err as Error).message);
