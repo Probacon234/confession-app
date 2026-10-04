@@ -383,4 +383,30 @@ router.post("/confessions/:id/reports", async (req, res): Promise<void> => {
   res.status(201).json(ReportConfessionResponse.parse({ success: true }));
 });
 
+router.get("/community/summary", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const [{ totalConfessions }] = await db
+      .select({ totalConfessions: count() })
+      .from(confessionsTable);
+
+    const [{ totalLikes }] = await db
+      .select({ totalLikes: count() })
+      .from(confessionLikesTable);
+
+    const [{ totalComments }] = await db
+      .select({ totalComments: count() })
+      .from(confessionCommentsTable);
+
+    res.json({
+      totalConfessions: Number(totalConfessions || 0),
+      totalLikes: Number(totalLikes || 0),
+      totalComments: Number(totalComments || 0),
+      pulse: "active",
+    });
+  } catch (error) {
+    console.error("Error fetching community summary:", error);
+    res.status(500).json({ error: "Failed to fetch summary" });
+  }
+});
+
 export default router;
