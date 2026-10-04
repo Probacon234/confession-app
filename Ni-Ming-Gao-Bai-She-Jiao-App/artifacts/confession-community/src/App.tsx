@@ -37,7 +37,8 @@ function ModerationPage() {
   }
 
   const accessResult = access as any;
-  if (accessResult?.access !== "allowed" && accessResult?.status !== "allowed") {
+  // 精确匹配后端返回的 allowed: true
+  if (!accessResult?.allowed) {
     return (
       <div className="p-8 text-center text-red-500">
         无访问权限。请确认你的账号邮箱已加入 CONFESSION_MODERATOR_EMAILS 环境变量中。
