@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
@@ -143,10 +143,11 @@ function SiteHeader() {
 function HomePage() {
   const [category, setCategory] = useState<ConfessionCategory | 'all'>('all');
   const [sort, setSort] = useState<'latest' | 'popular'>('latest');
+  const { isSignedIn, getToken } = useAuth();
+  const { openSignIn } = useClerk();
   const [composeOpen, setComposeOpen] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
-  const { isSignedIn } = useUser();
   const [, setLocation] = useLocation();
   const params = { sort, ...(category === 'all' ? {} : { category }) };
   const feed = useListConfessions(params);
@@ -237,7 +238,29 @@ function HomePage() {
       </section>
       <Footer />
     </main>
-    {composeOpen && <ComposeModal close={() => setComposeOpen(false)} onSubmit={(data) => create.mutate({ data })} pending={create.isPending} error={create.isError} />}
+  {composeOpen && (
+  <ComposeModal
+    close={() => setComposeOpen(false)}
+    error={Boolean(create.error)}
+    pending={create.isPending}
+    onSubmit={(data) => {
+      if (!isSignedIn) {
+        openSignIn();
+        return;
+      }
+      getToken().then((token) => {
+        (create.mutate as any)(
+          { data },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+      });
+    }}
+  />
+)}
     {reportId !== null && <ReportModal id={reportId} close={() => setReportId(null)} onSuccess={() => setNotice('Thank you. Your report has been received with care.')} />}
   </div>;
 }
