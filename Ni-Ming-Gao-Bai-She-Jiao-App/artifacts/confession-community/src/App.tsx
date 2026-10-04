@@ -106,8 +106,8 @@ function PageErrorBoundary({ children }: { children: ReactNode }) {
 
 function Brand({ small = false }: { small?: boolean }) {
   const { isSignedIn } = useUser();
-  return <Link href={isSignedIn ? '/wall' : '/'} className={`brand-lockup ${small ? 'brand-small' : ''}`} aria-label="心事牆 首頁" data-testid="link-home-brand">
-    <span className="brand-mark"><span /></span><span className="brand-type"><b>心事牆</b><small>LET IT OUT, GENTLY</small></span>
+  return <Link href={isSignedIn ? '/wall' : '/'} className={`brand-lockup ${small ? 'brand-small' : ''}`} aria-label="CONFESSIONMIIT 首頁" data-testid="link-home-brand">
+    <span className="brand-mark"><span /></span><span className="brand-type"><b>CONFESSIONMIIT</b><small>LET IT OUT, GENTLY</small></span>
   </Link>;
 }
 
@@ -129,7 +129,7 @@ function SiteHeader() {
           <Link href="/sign-up" className="header-cta">Join the wall <ArrowRight size={15} /></Link>
         </Show>
         <Show when="signed-in">
-          <Link href="/user-portal" className="user-chip" data-testid="link-user-portal"><span className="user-dot">{user?.firstName?.slice(0, 1) ?? '心'}</span><span>My space</span></Link>
+          <Link href="/user-portal" className="user-chip" data-testid="link-user-portal"><span className="user-dot">{user?.firstName?.slice(0, 1) ?? 'CONFESSIONMIIT'}</span><span>My space</span></Link>
           <button className="sign-out-button" onClick={() => signOut({ redirectUrl: basePath || '/' })} data-testid="button-sign-out">Sign out</button>
         </Show>
       </div>
@@ -412,7 +412,7 @@ function EmptyFeed({ category, onWrite }: { category: ConfessionCategory | 'all'
   return <div className="state-card empty-state"><span className="empty-art"><span /><span /><span /></span><span className="eyebrow muted-eyebrow">A BLANK PAGE IS A BEGINNING</span><h3 className="serif">{category === 'all' ? 'The wall is quiet for now.' : `No ${englishCategories[category].toLowerCase()} stories yet.`}</h3><p>Maybe your words are the first ones this corner needs.</p><button onClick={onWrite} className="primary-button" data-testid="button-empty-write">Leave the first story <PenLine size={15} /></button></div>;
 }
 function Footer() {
-  return <footer className="site-footer"><div className="footer-inner"><Brand small /><p>A softer place to be human.</p><span>Made with care, in Malaysia <i>·</i> © 2025 心事牆</span></div></footer>;
+  return <footer className="site-footer"><div className="footer-inner"><Brand small /><p>A softer place to be human.</p><span>Made with care, in Malaysia <i>·</i> © 2025 CONFESSIONMIIT</span></div></footer>;
 }
 function timeAgo(date: string) {
   const diff = Math.max(0, Date.now() - new Date(date).getTime());
@@ -432,10 +432,10 @@ function UserPortalRoute() {
   return <><Show when="signed-in"><UserPortalPage /></Show><Show when="signed-out"><Redirect to="/" /></Show></>;
 }
 function SignInPage() {
-  return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">A PLACE TO SET IT DOWN</span><h1 className="serif">You can be<br /><em>here, quietly.</em></h1><p>Your name stays yours. Your words can still find their people.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">心事牆 · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div></div>;
+  return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">A PLACE TO SET IT DOWN</span><h1 className="serif">You can be<br /><em>here, quietly.</em></h1><p>Your name stays yours. Your words can still find their people.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">CONFESSIONMIIT · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} /></div></div>;
 }
 function SignUpPage() {
-  return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">MAKE ROOM FOR YOURSELF</span><h1 className="serif">No introductions.<br /><em>Just a little care.</em></h1><p>Join a community where your name is never part of the story.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">心事牆 · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div></div>;
+  return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">MAKE ROOM FOR YOURSELF</span><h1 className="serif">No introductions.<br /><em>Just a little care.</em></h1><p>Join a community where your name is never part of the story.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">CONFESSIONMIIT · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div></div>;
 }
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
