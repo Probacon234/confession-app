@@ -118,7 +118,7 @@ router.get("/confessions", async (req, res): Promise<void> => {
   const likesByConfession = db
     .select({
       confessionId: confessionLikesTable.confessionId,
-      total: count().as("total"),
+      total: count().as("likes_count"),
     })
     .from(confessionLikesTable)
     .groupBy(confessionLikesTable.confessionId)
@@ -126,7 +126,7 @@ router.get("/confessions", async (req, res): Promise<void> => {
   const commentsByConfession = db
     .select({
       confessionId: confessionCommentsTable.confessionId,
-      total: count().as("total"),
+      total: count().as("comments_count"),
     })
     .from(confessionCommentsTable)
     .groupBy(confessionCommentsTable.confessionId)
@@ -138,8 +138,8 @@ router.get("/confessions", async (req, res): Promise<void> => {
       content: confessionsTable.content,
       category: confessionsTable.category,
       createdAt: confessionsTable.createdAt,
-      likes: sql<number>`coalesce(${likesByConfession.total}, 0)::int`,
-      commentsCount: sql<number>`coalesce(${commentsByConfession.total}, 0)::int`,
+      likes: sql<number>`coalesce("likes_by_confession"."likes_count", 0)::int`,
+      commentsCount: sql<number>`coalesce("comments_by_confession"."comments_count", 0)::int`,
     })
     .from(confessionsTable)
     .leftJoin(
