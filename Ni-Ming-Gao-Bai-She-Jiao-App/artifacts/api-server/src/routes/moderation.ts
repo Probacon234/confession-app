@@ -200,7 +200,8 @@ router.delete("/confessions/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Cascade delete handler for confessions and all related entities
+// Complete cascade deletion handler inside a database transaction
+// Complete cascade deletion handler inside a database transaction
 const handleDeleteConfession = async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -213,24 +214,34 @@ const handleDeleteConfession = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Delete associated reports first
-    await db
-      .delete(confessionReportsTable)
-      .where(eq(confessionReportsTable.confessionId, postId));
+    // 使用 db.transaction 包裹级联删除操作
+    await db.transaction(async (tx) => {
+      // 1. 先删除关联的举报记录
+      await tx
+        .delete(confessionReportsTable)
+        .where(eq(confessionReportsTable.confessionId, postId));
 
-    // 2. Delete the target confession post
-    await db
-      .delete(confessionsTable)
-      .where(eq(confessionsTable.id, postId));
+      // 2. 再删除告白贴文本身
+      await tx
+        .delete(confessionsTable)
+        .where(eq(confessionsTable.id, postId));
+    });
 
     return res.json({ success: true, message: "Post deleted successfully" });
   } catch (error: any) {
-    logger.error({ error, postId }, "Failed to delete post");
+    logger.error({ error, postId }, "Failed to delete post inside transaction");
     return res.status(500).json({ 
-      message: error?.detail || error?.message || "Failed to delete post due to database constraint." 
+      message: error?.message || error?.detail || "Database cascade delete failed." 
     });
   }
 };
+
+// 注册路由接口
+router.delete("/confessions/:id", handleDeleteConfession);
+router.delete("/posts/:id", handleDeleteConfession);
+
+router.delete("/confessions/:id", handleDeleteConfession);
+router.delete("/posts/:id", handleDeleteConfession);
 
 router.delete("/confessions/:id", handleDeleteConfession);
 router.delete("/posts/:id", handleDeleteConfession);
