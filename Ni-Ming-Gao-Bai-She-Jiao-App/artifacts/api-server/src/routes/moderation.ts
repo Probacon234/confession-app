@@ -200,7 +200,7 @@ router.delete("/confessions/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Delete confession post by ID (Handles cascading comments, reports, and error messages)
+// Complete cascade deletion handler for confessions
 const handleDeleteConfession = async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
@@ -213,7 +213,7 @@ const handleDeleteConfession = async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Delete associated reports first
+    // 1. Delete associated reports
     await db
       .delete(confessionReportsTable)
       .where(eq(confessionReportsTable.confessionId, postId));
@@ -226,12 +226,15 @@ const handleDeleteConfession = async (req: Request, res: Response) => {
     return res.json({ success: true, message: "Post deleted successfully" });
   } catch (error: any) {
     logger.error({ error }, "Failed to delete post");
-    // Return explicit error details to assist debugging
+    // Return explicit error text so front-end can display exact issue if it fails
     return res.status(500).json({ 
-      message: error?.message || "Database execution failed while deleting post." 
+      message: error?.message || error?.detail || "Database cascade deletion error" 
     });
   }
 };
+
+router.delete("/confessions/:id", handleDeleteConfession);
+router.delete("/posts/:id", handleDeleteConfession);
 
 // Register routes
 router.delete("/confessions/:id", handleDeleteConfession);
