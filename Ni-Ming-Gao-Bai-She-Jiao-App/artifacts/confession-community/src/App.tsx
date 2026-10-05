@@ -719,6 +719,7 @@ function SignUpPage() {
   return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">MAKE ROOM FOR YOURSELF</span><h1 className="serif">No introductions.<br /><em>Just a little care.</em></h1><p>Join a community where your name is never part of the story.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">CONFESSIONMIIT · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div></div>;
 }
 function GlobalAnnouncementBanner() {
+  const { user } = useUser();
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
   const loadAnnouncements = () => {
@@ -756,16 +757,25 @@ function GlobalAnnouncementBanner() {
             {/* 刪除按鈕：點擊後直接刪除這則公告 */}
             <button
               onClick={async () => {
+                const currentEmail = user?.primaryEmailAddress?.emailAddress;
+                console.log("【前端】當前準備發送的信箱:", currentEmail); // 點擊刪除時看 F12 Console
+
                 if (!confirm("Are you sure you want to delete this announcement?")) return;
-                const res = await fetch(`/api/moderation/announcements/${item.id}`, {
-                  method: "DELETE",
+  
+                 const res = await fetch(`/api/moderation/announcements/${item.id}`, {
+                   method: "DELETE",
+                   headers: {
+                    "Content-Type": "application/json",
+                    "x-user-email": currentEmail || "",
+                  },
                 });
-                if (res.ok) {
-                  setAnnouncements((prev) => prev.filter((a) => a.id !== item.id));
-                } else {
-                  alert("Deletion failed. Please check if you have administrator privileges.");
-                }
-              }}
+
+  if (res.ok) {
+    setAnnouncements((prev) => prev.filter((a) => a.id !== item.id));
+  } else {
+    alert("Deletion failed. Please check if you have administrator privileges.");
+  }
+}}
               className="ml-4 px-2 py-1 bg-red-800 hover:bg-red-900 text-xs text-white rounded transition"
             >
               Delete
