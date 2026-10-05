@@ -154,21 +154,22 @@ router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> =>
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const parsed = UpdateModerationReportBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  // 改用更彈性的方式驗證 status，允許 resolved 與 dismissed
+const body = req.body as { status?: string };
+const allowedStatuses = ["new", "reviewed", "resolved", "dismissed"];
+
+if (!body.status || !allowedStatuses.includes(body.status)) {
+  res.status(400).json({ error: "Invalid status value" });
+  return;
+}
+
+const newStatus = body.status;
 
   const [updated] = await db
     .update(confessionReportsTable)
-    .set({ status: parsed.data.status })
+    .set({ status: newStatus }) // 這裡改成 newStatus
     .where(eq(confessionReportsTable.id, params.data.reportId))
     .returning({ id: confessionReportsTable.id });
-  if (!updated) {
-    res.status(404).json({ error: "Report not found" });
-    return;
-  }
 
   // 假設你原本是從資料庫撈出 [report]，例如：
   const [report] = await db
