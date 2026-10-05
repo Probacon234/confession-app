@@ -1,3 +1,11 @@
+import { 
+  confessionsTable, 
+  bannedUsersTable, 
+  db, 
+  confessionCommentsTable, 
+  confessionLikesTable, 
+  confessionReportsTable 
+} from "@workspace/db";
 import { getAuth } from "@clerk/express";
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
@@ -19,13 +27,6 @@ import {
   ToggleConfessionLikeParams,
   ToggleConfessionLikeResponse,
 } from "@workspace/api-zod";
-import {
-  confessionCommentsTable,
-  confessionLikesTable,
-  confessionReportsTable,
-  confessionsTable,
-  db,
-} from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -191,31 +192,25 @@ router.get("/confessions", async (req, res): Promise<void> => {
   );
 });
 
+
 router.post("/confessions", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const parsed = CreateConfessionBody.safeParse(trimContent(req.body));
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error.message);
+  // --- ⬇️ 請把黑名單檢查放在這裡（函數內部） ⬇️ ---
+  const bannedRecord = await db
+    .select()
+    .from(bannedUsersTable)
+    .where(eq(bannedUsersTable.userId, userId))
+    .limit(1);
+
+  if (bannedRecord.length > 0) {
+    res.status(403).json({ message: "You have been banned from posting confessions." });
     return;
   }
+  // ----------------------------------------------------
 
-  const [created] = await db
-    .insert(confessionsTable)
-    .values({ ...parsed.data, authorId: userId })
-    .returning({
-      id: confessionsTable.id,
-      content: confessionsTable.content,
-      category: confessionsTable.category,
-      createdAt: confessionsTable.createdAt,
-    });
-
-  res
-    .status(201)
-    .json(
-      CreateConfessionResponse.parse(await confessionResponse(created, userId)),
-    );
+  // 接下來是原本寫入資料庫的發文邏輯...
 });
 
 router.get("/confessions/:id", async (req, res): Promise<void> => {
@@ -383,6 +378,7 @@ router.post("/confessions/:id/reports", async (req, res): Promise<void> => {
   res.status(201).json(ReportConfessionResponse.parse({ success: true }));
 });
 
+
 router.get("/community/summary", async (req: Request, res: Response): Promise<void> => {
   try {
     const [{ totalConfessions }] = await db
@@ -408,5 +404,8 @@ router.get("/community/summary", async (req: Request, res: Response): Promise<vo
     res.status(500).json({ error: "Failed to fetch summary" });
   }
 });
+
+
+import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 export default router;
