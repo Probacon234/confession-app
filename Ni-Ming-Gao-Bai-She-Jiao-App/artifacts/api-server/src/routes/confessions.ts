@@ -363,6 +363,31 @@ router.get("/community/summary", async (req: Request, res: Response): Promise<vo
   }
 });
 
+router.get("/confessions/:id", async (req, res): Promise<void> => {
+  const confessionId = Number(req.params.id);
+  if (isNaN(confessionId)) {
+    res.status(400).json({ message: "Invalid confession ID" });
+    return;
+  }
+
+  try {
+    const [post] = await db
+      .select()
+      .from(confessionsTable)
+      .where(eq(confessionsTable.id, confessionId))
+      .limit(1);
+
+    if (!post) {
+      res.status(404).json({ message: "Confession post not found" });
+      return;
+    }
+
+    res.json(post);
+  } catch (error: any) {
+    console.error("Failed to fetch confession:", error);
+    res.status(500).json({ message: error?.message || "Internal server error" });
+  }
+});
 
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
