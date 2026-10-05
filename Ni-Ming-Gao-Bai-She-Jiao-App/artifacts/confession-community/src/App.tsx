@@ -222,9 +222,10 @@ function ModerationPage() {
   // 公告表單狀態與發送邏輯
   // ==========================================
 
+
   const handlePostAnnouncement = async () => {
     if (!title.trim() || !content.trim()) {
-      alert("請填寫公告標題與內容！");
+      alert("Please fill in the title and content of the announcement!");
       return;
     }
     
@@ -237,14 +238,14 @@ function ModerationPage() {
         body: JSON.stringify({ title, content, authorId: "Admin" }),
       });
 
-      if (!res.ok) throw new Error("發佈失敗");
+      if (!res.ok) throw new Error("Failed to publish announcement");
       
-      alert("🎉 公告發佈成功！");
+      alert("🎉 Announcement published successfully!");
       setTitle("");   // 清空輸入框
       setContent(""); // 清空輸入框
     } catch (error) {
       console.error(error);
-      alert("發佈公告時發生錯誤，請稍後再試。");
+      alert("Failed to publish announcement. Please try again later.");
     } finally {
       setIsSubmitting(false);
     }
@@ -717,6 +718,39 @@ function SignInPage() {
 function SignUpPage() {
   return <div className="auth-page"><div className="auth-aside"><Brand /><span className="eyebrow">MAKE ROOM FOR YOURSELF</span><h1 className="serif">No introductions.<br /><em>Just a little care.</em></h1><p>Join a community where your name is never part of the story.</p><div className="auth-aside-orbit"><span /><span /><span /></div><span className="auth-aside-caption">CONFESSIONMIIT · A human place</span></div><div className="auth-form-area"><Link href="/" className="auth-back"><ArrowLeft size={15} /> Back to the wall</Link><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} /></div></div>;
 }
+function GlobalAnnouncementBanner() {
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/moderation/announcements")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAnnouncements(data);
+        }
+      })
+      .catch((err) => console.error("Failed to load announcements", err));
+  }, []);
+
+  if (announcements.length === 0) return null;
+
+  return (
+    <div className="bg-red-600 text-white shadow-md sticky top-0 z-50">
+      <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col gap-1">
+        <div className="flex items-center gap-2 font-bold text-sm tracking-wide">
+          <span>🚨</span>
+          <span>系統緊急公告</span>
+        </div>
+        {announcements.map((item) => (
+          <div key={item.id} className="text-sm bg-red-700/50 p-2 rounded">
+            <span className="font-semibold underline">{item.title}</span>：
+            <span>{item.content}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
@@ -735,7 +769,9 @@ function ClerkProviderWithRoutes() {
   >
     <QueryClientProvider client={queryClient}>
       <ClerkQueryClientCacheInvalidator />
-      <PageErrorBoundary><Switch>
+      <PageErrorBoundary>
+        <GlobalAnnouncementBanner />
+        <Switch>
         <Route path="/" component={HomeRedirect} />
         <Route path="/wall" component={HomePage} />
         <Route path="/sign-in/*?" component={SignInPage} />
