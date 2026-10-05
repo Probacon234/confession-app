@@ -12,6 +12,8 @@ import {
 import {
   confessionsTable,
   confessionReportsTable,
+  announcementsTable,
+  insertAnnouncementSchema,
   bannedUsersTable, // 順便把黑名單表加進來
   db,
 } from "@workspace/db";
@@ -334,6 +336,24 @@ router.post("/users/ban", async (req: Request, res: Response) => {
   } catch (error: any) {
     logger.error({ error }, "Failed to ban user");
     return res.status(500).json({ message: error?.message || "Failed to ban user due to server error" });
+  }
+});
+
+// ==========================================
+// 新增：發布系統公告 API
+// ==========================================
+router.post("/announcements", async (req, res) => {
+  try {
+    const parsed = insertAnnouncementSchema.parse(req.body);
+    const [newAnnouncement] = await db
+      .insert(announcementsTable)
+      .values(parsed)
+      .returning();
+    
+    res.status(201).json(newAnnouncement);
+  } catch (error) {
+    console.error("Failed to create announcement:", error);
+    res.status(400).json({ error: "Failed to create announcement" });
   }
 });
 
