@@ -1,5 +1,5 @@
 import { clerkClient, getAuth } from "@clerk/express";
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   GetModerationAccessResponse,
@@ -272,6 +272,14 @@ router.post("/users/ban", async (req: Request, res: Response) => {
   }
 
   try {
+    // 0. 自動確保雲端資料庫存在正確的 banned_users 表格與主鍵
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "banned_users" (
+          "user_id" text PRIMARY KEY NOT NULL,
+          "banned_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
     // 1. 透過前端傳來的 confessionId 去資料庫找出這篇貼文的作者 (authorId)
     const post = await db
       .select()
@@ -288,10 +296,10 @@ router.post("/users/ban", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Cannot ban: Author ID is missing in the database record." });
     }
 
-    // 2. 將該使用者的 ID 寫入我們自建的黑名單資料表中
+    // 2. 將該使用者的 ID 寫入黑名單
     await db.insert(bannedUsersTable)
       .values({ userId: targetUserId })
-      .onConflictDoNothing({ target: bannedUsersTable.userId }); // 加上 target 讓 Postgres 知道對應哪個欄位
+      .onConflictDoNothing({ target: bannedUsersTable.userId });
 
     return res.json({ success: true, message: "User added to local blacklist successfully" });
   } catch (error: any) {
