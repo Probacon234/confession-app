@@ -10,8 +10,9 @@ import {
   UpdateModerationReportResponse,
 } from "@workspace/api-zod";
 import {
-  confessionReportsTable,
   confessionsTable,
+  confessionReportsTable,
+  bannedUsersTable, // 順便把黑名單表加進來
   db,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -258,49 +259,41 @@ router.delete("/posts/:id", handleDeleteConfession);
 router.delete("/confessions/:id", handleDeleteConfession);
 router.delete("/posts/:id", handleDeleteConfession);
 
-// Ban user via Clerk Server SDK (Supports lookup by confessionId)
+// Ban user via local database blacklist (Bypassing Clerk payment restriction)
 router.post("/users/ban", async (req: Request, res: Response) => {
   const auth = getAuth(req);
   if (!auth.userId) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  // 1. 接收前端傳來的 confessionId 或 userId
-  const { confessionId, userId } = req.body;
-
-  if (!confessionId && !userId) {
-    return res.status(400).json({ message: "Missing confessionId or userId in request body" });
+  const { confessionId } = req.body;
+  if (!confessionId) {
+    return res.status(400).json({ message: "Missing confessionId in request body" });
   }
 
   try {
-    let targetUserId = userId;
+    // 1. 透過前端傳來的 confessionId 去資料庫找出這篇貼文的作者 (authorId)
+    const post = await db
+      .select()
+      .from(confessionsTable)
+      .where(eq(confessionsTable.id, Number(confessionId)))
+      .limit(1);
 
-    // 2. 如果前端傳的是 confessionId，就去資料庫把這個匿名作者的真實 ID 抓出來
-    if (confessionId) {
-      const post = await db
-        .select()
-        .from(confessionsTable)
-        .where(eq(confessionsTable.id, Number(confessionId)))
-        .limit(1);
-
-      if (post.length === 0) {
-        return res.status(404).json({ message: "Confession post not found in database" });
-      }
-
-      // 嘗試獲取資料庫中紀錄作者的欄位 (通常是 authorId, userId 或 clerkId)
-      // 直接使用数据库中实际存在的 authorId 字段
-    targetUserId = post[0].authorId;
+    if (post.length === 0) {
+      return res.status(404).json({ message: "Confession post not found in database" });
     }
 
-    // 如果資料庫裡也沒有這個人的 ID (例如舊資料沒存)
+    const targetUserId = post[0].authorId;
     if (!targetUserId) {
       return res.status(404).json({ message: "Cannot ban: Author ID is missing in the database record." });
     }
 
-    // 3. 呼叫 Clerk SDK 正式封鎖該用戶
-    await clerkClient.users.banUser(targetUserId);
+    // 2. 將該使用者的 ID 寫入我們自建的黑名單資料表中
+    await db.insert(bannedUsersTable)
+    .values({ userId: targetUserId })
+    .onConflictDoNothing();
 
-    return res.json({ success: true, message: "User banned successfully" });
+    return res.json({ success: true, message: "User added to local blacklist successfully" });
   } catch (error: any) {
     logger.error({ error }, "Failed to ban user");
     return res.status(500).json({ message: error?.message || "Failed to ban user due to server error" });
