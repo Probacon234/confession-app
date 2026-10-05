@@ -375,17 +375,25 @@ router.post("/announcements", async (req, res) => {
 });
 
 // 刪除系統公告 API
+// 刪除系統公告 API（加上管理員信箱驗證）
 router.delete("/announcements/:id", async (req, res) => {
   try {
+    const userEmail = req.headers["x-user-email"] || req.body?.email;
+    const moderatorEmails = process.env.CONFESSION_MODERATOR_EMAILS || "";
+
+    if (!userEmail || !moderatorEmails.includes(String(userEmail))) {
+      return res.status(403).json({ error: "Unauthorized: You are not a moderator" });
+    }
+
     const id = parseInt(req.params.id);
     await db
       .delete(announcementsTable)
       .where(eq(announcementsTable.id, id));
     
-    res.json({ success: true });
+    return res.json({ success: true }); // 🌟 加上 return
   } catch (error) {
     console.error("Failed to delete announcement:", error);
-    res.status(500).json({ error: "Failed to delete announcement" });
+    return res.status(500).json({ error: "Failed to delete announcement" }); // 🌟 加上 return
   }
 });
 
