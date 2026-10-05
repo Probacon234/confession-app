@@ -92,16 +92,29 @@ function ReportedItem({ report }: { report: any }) {
 
   // Ban user directly via API
   const handleBanUser = async () => {
-    const authorId = (confession as any)?.authorId || (confession as any)?.userId;
+    // 1. 打印当前拿到的贴文和举报数据，方便我们在 F12 控制台查看它的真实结构
+    console.log("Current confession data:", confession);
+    console.log("Current report data:", report);
+
+    // 2. 尝试从更多可能的字段中获取发帖人 ID
+    const authorId = 
+      (confession as any)?.authorId || 
+      (confession as any)?.userId || 
+      (confession as any)?.clerkId || 
+      (confession as any)?.creatorId ||
+      (report as any)?.reportedUserId; // 有些设计会把被举报人ID直接放在举报表里
+
     if (!authorId) {
-      alert("Unable to ban: Author ID not found for this post.");
+      alert("Unable to ban: Author ID not found. 请按 F12 打开控制台 (Console) 查看具体的字段结构！");
       return;
     }
+
     if (!window.confirm(`Are you sure you want to ban user ${authorId}?`)) {
       return;
     }
+
     try {
-      const res = await fetch("/api/moderation/users/ban", {
+      const res = await fetch(`${window.location.origin}/api/moderation/users/ban`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -110,22 +123,12 @@ function ReportedItem({ report }: { report: any }) {
         body: JSON.stringify({ userId: authorId }),
       });
 
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        if (res.ok) {
-          alert("User banned successfully.");
-          queryClient.invalidateQueries();
-        } else {
-          alert("Failed to ban user: " + (data.message || "Unknown error"));
-        }
+      if (res.ok) {
+        alert("User banned successfully.");
+        queryClient.invalidateQueries();
       } else {
-        if (res.ok) {
-          alert("User banned successfully.");
-          queryClient.invalidateQueries();
-        } else {
-          alert("Failed to ban user (HTTP " + res.status + ")");
-        }
+        const data = await res.json().catch(() => null);
+        alert(`Failed to ban user: ${data?.message || res.statusText} (HTTP ${res.status})`);
       }
     } catch (err) {
       alert("Ban failed: " + (err as Error).message);
