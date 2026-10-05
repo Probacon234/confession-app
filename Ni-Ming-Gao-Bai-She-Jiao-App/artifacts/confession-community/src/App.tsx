@@ -210,11 +210,75 @@ function ModerationPage() {
     );
   }
 
+  // ==========================================
+  // 公告表單狀態與發送邏輯
+  // ==========================================
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePostAnnouncement = async () => {
+    if (!title.trim() || !content.trim()) {
+      alert("請填寫公告標題與內容！");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      // 呼叫我們剛才寫好的後端 API
+      const res = await fetch("/api/moderation/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content, authorId: "Admin" }),
+      });
+
+      if (!res.ok) throw new Error("發佈失敗");
+      
+      alert("🎉 公告發佈成功！");
+      setTitle("");   // 清空輸入框
+      setContent(""); // 清空輸入框
+    } catch (error) {
+      console.error(error);
+      alert("發佈公告時發生錯誤，請稍後再試。");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const reports = (reportsData as any)?.reports || (reportsData as any) || [];
 
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6">CONFESSIONMIIT Report Management Backend</h1>
+      {/* 發佈公告區塊 */}
+        <div className="mb-8 p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="text-lg font-bold mb-4 text-gray-800">📢 發佈系統公告</h2>
+          <div className="flex flex-col gap-4">
+            <input
+              type="text"
+              placeholder="公告標題 (例如：系統維護通知)"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+            />
+            <textarea
+              placeholder="公告內容..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              className="p-2 border border-gray-300 rounded min-h-[100px] focus:outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={handlePostAnnouncement}
+              disabled={isSubmitting}
+              className="self-start bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? "發佈中..." : "發佈公告"}
+            </button>
+          </div>
+        </div>
+        
+        {/* 下方原本的檢舉列表加上一個小標題來區分 */}
+        <h2 className="text-lg font-bold mb-4 text-gray-800">🚨 檢舉管理列表</h2>
       {!Array.isArray(reports) || reports.length === 0 ? (
         <p className="text-gray-500">No reports found at the moment.</p>
       ) : (
