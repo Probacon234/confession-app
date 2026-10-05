@@ -358,6 +358,22 @@ router.get("/announcements", async (req, res) => {
   }
 });
 
+// 發布系統公告 API
+router.post("/announcements", async (req, res) => {
+  try {
+    const parsed = insertAnnouncementSchema.parse(req.body);
+    const [newAnnouncement] = await db
+      .insert(announcementsTable)
+      .values(parsed)
+      .returning();
+    
+    res.status(201).json(newAnnouncement);
+  } catch (error) {
+    console.error("Failed to create announcement:", error);
+    res.status(400).json({ error: "Failed to create announcement" });
+  }
+});
+
 // 刪除系統公告 API
 router.delete("/announcements/:id", async (req, res) => {
   try {
