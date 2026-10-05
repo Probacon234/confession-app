@@ -170,6 +170,7 @@ router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> =>
     return;
   }
 
+  // 假設你原本是從資料庫撈出 [report]，例如：
   const [report] = await db
     .select(reportSelection())
     .from(confessionReportsTable)
@@ -177,9 +178,25 @@ router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> =>
       confessionsTable,
       eq(confessionReportsTable.confessionId, confessionsTable.id),
     )
-    .where(eq(confessionReportsTable.id, updated.id));
+    .where(eq(confessionReportsTable.id, params.data.reportId))
+    .limit(1);
 
-  res.json(UpdateModerationReportResponse.parse(report));
+  if (!report) {
+    res.status(404).json({ error: "Report not found" });
+    return;
+  }
+
+  // 👇 請在這裡加上全方位的欄位對應，再回傳給前端
+  const responseData = {
+    ...report,
+    content: report.confessionContent,
+    confessionContent: report.confessionContent,
+    postContent: report.confessionContent,
+    category: report.confessionCategory,
+    confessionCategory: report.confessionCategory,
+  };
+
+  res.json(responseData);
 });
 
 // 1. Delete confession post by ID
