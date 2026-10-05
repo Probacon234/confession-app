@@ -344,16 +344,19 @@ router.post("/users/ban", async (req: Request, res: Response) => {
 // ==========================================
 // 獲取所有系統公告
 // 獲取所有系統公告
-router.get("/announcements", async (req, res) => {
+// 發布系統公告 API
+router.post("/announcements", async (req, res) => {
   try {
-    const list = await db
-      .select()
-      .from(announcementsTable)
-      .orderBy(desc(announcementsTable.createdAt));
-    res.json(list);
+    const parsed = insertAnnouncementSchema.parse(req.body);
+    const [newAnnouncement] = await db
+      .insert(announcementsTable)
+      .values(parsed)
+      .returning();
+    
+    res.status(201).json(newAnnouncement);
   } catch (error) {
-    console.error("Failed to fetch announcements:", error);
-    res.status(500).json({ error: "Failed to fetch announcements" });
+    console.error("Failed to create announcement:", error);
+    res.status(400).json({ error: "Failed to create announcement" });
   }
 });
 

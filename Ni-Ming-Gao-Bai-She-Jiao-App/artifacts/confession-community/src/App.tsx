@@ -721,7 +721,7 @@ function SignUpPage() {
 function GlobalAnnouncementBanner() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  useEffect(() => {
+  const loadAnnouncements = () => {
     fetch("/api/moderation/announcements")
       .then((res) => res.json())
       .then((data) => {
@@ -730,6 +730,10 @@ function GlobalAnnouncementBanner() {
         }
       })
       .catch((err) => console.error("Failed to load announcements", err));
+  };
+
+  useEffect(() => {
+    loadAnnouncements();
   }, []);
 
   if (announcements.length === 0) return null;
@@ -737,20 +741,42 @@ function GlobalAnnouncementBanner() {
   return (
     <div className="bg-red-600 text-white shadow-md sticky top-0 z-50">
       <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col gap-1">
-        <div className="flex items-center gap-2 font-bold text-sm tracking-wide">
-          <span>🚨</span>
-          <span>系統緊急公告</span>
+        <div className="flex items-center justify-between font-bold text-sm tracking-wide">
+          <div className="flex items-center gap-2">
+            <span>🚨</span>
+            <span>Emergency System Announcement</span>
+          </div>
         </div>
         {announcements.map((item) => (
-          <div key={item.id} className="text-sm bg-red-700/50 p-2 rounded">
-            <span className="font-semibold underline">{item.title}</span>：
-            <span>{item.content}</span>
+          <div key={item.id} className="text-sm bg-red-700/50 p-2 rounded flex items-center justify-between">
+            <div>
+              <span className="font-semibold underline">{item.title}</span>：
+              <span>{item.content}</span>
+            </div>
+            {/* 刪除按鈕：點擊後直接刪除這則公告 */}
+            <button
+              onClick={async () => {
+                if (!confirm("Are you sure you want to delete this announcement?")) return;
+                const res = await fetch(`/api/moderation/announcements/${item.id}`, {
+                  method: "DELETE",
+                });
+                if (res.ok) {
+                  setAnnouncements((prev) => prev.filter((a) => a.id !== item.id));
+                } else {
+                  alert("Deletion failed. Please check if you have administrator privileges.");
+                }
+              }}
+              className="ml-4 px-2 py-1 bg-red-800 hover:bg-red-900 text-xs text-white rounded transition"
+            >
+              Delete
+            </button>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
