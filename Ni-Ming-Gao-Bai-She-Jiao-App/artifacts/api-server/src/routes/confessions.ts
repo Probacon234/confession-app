@@ -197,86 +197,44 @@ router.post("/confessions", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  // --- ⬇️ 請把黑名單檢查放在這裡（函數內部） ⬇️ ---
-  const bannedRecord = await db
-    .select()
-    .from(bannedUsersTable)
-    .where(eq(bannedUsersTable.userId, userId))
-    .limit(1);
+  // 1. 檢查該使用者是否在自建黑名單內
+  try {
+    const bannedRecord = await db
+      .select()
+      .from(bannedUsersTable)
+      .where(eq(bannedUsersTable.userId, userId))
+      .limit(1);
 
-  if (bannedRecord.length > 0) {
-    res.status(403).json({ message: "You have been banned from posting confessions." });
-    return;
-  }
-  // ----------------------------------------------------
-
-  // 接下來是原本寫入資料庫的發文邏輯...
-});
-
-router.get("/confessions/:id", async (req, res): Promise<void> => {
-  const parsed = GetConfessionParams.safeParse(req.params);
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error.message);
-    return;
+    if (bannedRecord.length > 0) {
+      res.status(403).json({ message: "You have been banned from posting confessions." });
+      return;
+    }
+  } catch (err) {
+    console.error("Error checking ban status:", err);
   }
 
-  const confession = await findConfession(parsed.data.id);
-  if (!confession) {
-    res.status(404).json({ error: "Confession not found" });
-    return;
+  // 2. 正常發文邏輯
+  try {
+    const { content, category } = req.body;
+    if (!content) {
+      res.status(400).json({ message: "Content is required" });
+      return;
+    }
+
+    const [newPost] = await db
+      .insert(confessionsTable)
+      .values({
+        content,
+        category: category || "life",
+        authorId: userId,
+      })
+      .returning();
+
+    res.status(201).json(newPost);
+  } catch (error: any) {
+    console.error("Failed to create confession:", error);
+    res.status(500).json({ message: error?.message || "Internal server error" });
   }
-
-  res.json(
-    GetConfessionResponse.parse(
-      await confessionResponse(confession, getAuth(req).userId),
-    ),
-  );
-});
-
-router.post("/confessions/:id/like", async (req, res): Promise<void> => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
-
-  const parsed = ToggleConfessionLikeParams.safeParse(req.params);
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error.message);
-    return;
-  }
-
-  const confession = await findConfession(parsed.data.id);
-  if (!confession) {
-    res.status(404).json({ error: "Confession not found" });
-    return;
-  }
-
-  const condition = and(
-    eq(confessionLikesTable.confessionId, confession.id),
-    eq(confessionLikesTable.userId, userId),
-  );
-  const [removed] = await db
-    .delete(confessionLikesTable)
-    .where(condition)
-    .returning({ confessionId: confessionLikesTable.confessionId });
-
-  let liked = false;
-  if (!removed) {
-    await db
-      .insert(confessionLikesTable)
-      .values({ confessionId: confession.id, userId })
-      .onConflictDoNothing();
-    liked = true;
-  }
-  const [likesResult] = await db
-    .select({ value: count() })
-    .from(confessionLikesTable)
-    .where(eq(confessionLikesTable.confessionId, confession.id));
-
-  res.json(
-    ToggleConfessionLikeResponse.parse({
-      liked,
-      likes: likesResult.value,
-    }),
-  );
 });
 
 router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
