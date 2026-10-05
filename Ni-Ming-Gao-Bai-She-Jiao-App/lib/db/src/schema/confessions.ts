@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  boolean
 } from "drizzle-orm/pg-core";
 import { z } from "zod/v4";
 
@@ -101,4 +102,27 @@ export type ConfessionComment = typeof confessionCommentsTable.$inferSelect;
 export const bannedUsersTable = pgTable("banned_users", {
   userId: text("user_id").primaryKey(), // 儲存使用者的 Clerk ID
   bannedAt: timestamp("banned_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// 公告功能 (Announcements)
+// ==========================================
+export const announcementsTable = pgTable(
+  "announcements",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),              // 公告標題
+    content: text("content").notNull(),          // 公告內容
+    authorId: text("author_id").notNull(),       // 紀錄是哪個管理員發的
+    isActive: boolean("is_active").notNull().default(true), // 是否顯示在首頁
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  }
+);
+
+// 給 Zod 驗證使用的 Insert Schema
+export const insertAnnouncementSchema = createInsertSchema(announcementsTable).omit({
+  id: true,
+  createdAt: true,
 });
