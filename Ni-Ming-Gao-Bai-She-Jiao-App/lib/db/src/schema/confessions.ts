@@ -96,3 +96,9 @@ export const insertConfessionCommentSchema = createInsertSchema(
 export type InsertConfession = z.infer<typeof insertConfessionSchema>;
 export type Confession = typeof confessionsTable.$inferSelect;
 export type ConfessionComment = typeof confessionCommentsTable.$inferSelect;
+
+// 自建的黑名單資料表
+export const bannedUsersTable = pgTable("banned_users", {
+  userId: text("user_id").primaryKey(), // 儲存使用者的 Clerk ID
+  bannedAt: timestamp("banned_at").defaultNow().notNull(),
+});
