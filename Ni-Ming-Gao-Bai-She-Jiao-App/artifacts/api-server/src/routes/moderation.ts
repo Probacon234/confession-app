@@ -345,18 +345,31 @@ router.post("/users/ban", async (req: Request, res: Response) => {
 // 獲取所有系統公告
 // 獲取所有系統公告
 // 發布系統公告 API
-router.post("/announcements", async (req, res) => {
+router.get("/announcements", async (req, res) => {
   try {
-    const parsed = insertAnnouncementSchema.parse(req.body);
-    const [newAnnouncement] = await db
-      .insert(announcementsTable)
-      .values(parsed)
-      .returning();
-    
-    res.status(201).json(newAnnouncement);
+    const list = await db
+      .select()
+      .from(announcementsTable)
+      .orderBy(desc(announcementsTable.createdAt));
+    res.json(list);
   } catch (error) {
-    console.error("Failed to create announcement:", error);
-    res.status(400).json({ error: "Failed to create announcement" });
+    console.error("Failed to fetch announcements:", error);
+    res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+// 刪除系統公告 API
+router.delete("/announcements/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db
+      .delete(announcementsTable)
+      .where(eq(announcementsTable.id, id));
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to delete announcement:", error);
+    res.status(500).json({ error: "Failed to delete announcement" });
   }
 });
 
