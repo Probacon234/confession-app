@@ -122,6 +122,7 @@ router.get("/moderation/reports", async (req, res): Promise<void> => {
     parsed.data.status === "all"
       ? undefined
       : eq(confessionReportsTable.status, parsed.data.status);
+
   const reports = await db
     .select(reportSelection())
     .from(confessionReportsTable)
@@ -132,7 +133,17 @@ router.get("/moderation/reports", async (req, res): Promise<void> => {
     .where(statusFilter)
     .orderBy(desc(confessionReportsTable.createdAt), desc(confessionReportsTable.id));
 
-  res.json(ListModerationReportsResponse.parse(reports));
+  // 1. 先透過 Zod 驗證確保資料結構正確（避免 500 錯誤）
+  const validatedReports = ListModerationReportsResponse.parse(reports);
+
+  // 2. 映射欄位，同時提供前端需要的 content 與 category
+  const responseData = validatedReports.map((report) => ({
+    ...report,
+    content: report.confessionContent,
+    category: report.confessionCategory,
+  }));
+
+  res.json(responseData);
 });
 
 router.patch("/moderation/reports/:reportId", async (req, res): Promise<void> => {
