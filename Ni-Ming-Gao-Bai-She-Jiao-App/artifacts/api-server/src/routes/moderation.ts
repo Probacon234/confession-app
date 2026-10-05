@@ -51,9 +51,9 @@ function reportSelection() {
     details: confessionReportsTable.details,
     status: confessionReportsTable.status,
     reportedAt: confessionReportsTable.createdAt,
-    confessionContent: confessionsTable.content,
-    confessionCategory: confessionsTable.category,
-    confessionCreatedAt: confessionsTable.createdAt,
+    content: confessionsTable.content,       // 改成 content
+    category: confessionsTable.category,     // 改成 category
+    createdAt: confessionsTable.createdAt,   // 改成 createdAt
   };
 }
 
