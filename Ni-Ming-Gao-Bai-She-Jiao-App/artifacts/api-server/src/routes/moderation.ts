@@ -290,8 +290,8 @@ router.post("/users/ban", async (req: Request, res: Response) => {
 
     // 2. 將該使用者的 ID 寫入我們自建的黑名單資料表中
     await db.insert(bannedUsersTable)
-    .values({ userId: targetUserId })
-    .onConflictDoNothing();
+      .values({ userId: targetUserId })
+      .onConflictDoNothing({ target: bannedUsersTable.userId }); // 加上 target 讓 Postgres 知道對應哪個欄位
 
     return res.json({ success: true, message: "User added to local blacklist successfully" });
   } catch (error: any) {
