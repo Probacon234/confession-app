@@ -90,26 +90,10 @@ function ReportedItem({ report }: { report: any }) {
     }
   };
 
-  // Ban user directly via API
+  // Ban user directly via API by providing the confession ID
   const handleBanUser = async () => {
-    // 1. 打印当前拿到的贴文和举报数据，方便我们在 F12 控制台查看它的真实结构
-    console.log("Current confession data:", confession);
-    console.log("Current report data:", report);
-
-    // 2. 尝试从更多可能的字段中获取发帖人 ID
-    const authorId = 
-      (confession as any)?.authorId || 
-      (confession as any)?.userId || 
-      (confession as any)?.clerkId || 
-      (confession as any)?.creatorId ||
-      (report as any)?.reportedUserId; // 有些设计会把被举报人ID直接放在举报表里
-
-    if (!authorId) {
-      alert("Unable to ban: Author ID not found. 请按 F12 打开控制台 (Console) 查看具体的字段结构！");
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to ban user ${authorId}?`)) {
+    // 直接让管理员确认是否封锁该贴文作者
+    if (!window.confirm("Are you sure you want to ban the author of this post?")) {
       return;
     }
 
@@ -120,15 +104,17 @@ function ReportedItem({ report }: { report: any }) {
           "Content-Type": "application/json",
           "Accept": "application/json",
         },
-        body: JSON.stringify({ userId: authorId }),
+        // 关键：这里直接传 report.confessionId 给后端
+        body: JSON.stringify({ confessionId: report.confessionId }),
       });
 
       if (res.ok) {
         alert("User banned successfully.");
-        queryClient.invalidateQueries();
+        // 如果有用到 react-query，这里刷新列表
+        // queryClient.invalidateQueries(); 
       } else {
         const data = await res.json().catch(() => null);
-        alert(`Failed to ban user: ${data?.message || res.statusText} (HTTP ${res.status})`);
+        alert(`Failed to ban user: ${data?.message || 'Unknown error'} (HTTP ${res.status})`);
       }
     } catch (err) {
       alert("Ban failed: " + (err as Error).message);
