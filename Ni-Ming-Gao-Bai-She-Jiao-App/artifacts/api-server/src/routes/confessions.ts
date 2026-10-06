@@ -271,7 +271,7 @@ router.post("/confessions/:id/like", async (req, res) => {
     const confessionId = parseInt(req.params.id);
     const userId = (req.headers["x-user-id"] as string) || req.body?.userId || "anonymous";
 
-    // 1. 檢查是否已點過讚
+    // 1. 檢查資料庫是否已有點讚紀錄
     const existingLike = await db
       .select()
       .from(confessionLikesTable)
@@ -283,6 +283,8 @@ router.post("/confessions/:id/like", async (req, res) => {
       )
       .limit(1);
 
+    let likedByMe = false;
+
     if (existingLike.length > 0) {
       // 已點讚 -> 刪除（取消點讚）
       await db
@@ -293,22 +295,28 @@ router.post("/confessions/:id/like", async (req, res) => {
             eq(confessionLikesTable.userId, userId)
           )
         );
+      likedByMe = false;
     } else {
-      // 未點讚 -> 新增
+      // 未點讚 -> 新增點讚紀錄
       await db.insert(confessionLikesTable).values({
         confessionId,
         userId,
       });
+      likedByMe = true;
     }
 
-    // 2. 重新查詢該貼文最新的所有點讚紀錄並回傳
-    const likes = await db
+    // 2. 算出現有總點讚數
+    const totalLikes = await db
       .select()
       .from(confessionLikesTable)
       .where(eq(confessionLikesTable.confessionId, confessionId));
 
-    // 回傳包含 likes 陣列的完整狀態供前端更新
-    return res.json({ id: confessionId, likes });
+    // 🌟 回傳前端需要的 likedByMe 與 likes 欄位
+    return res.json({ 
+      id: confessionId, 
+      likedByMe, 
+      likes: totalLikes.length 
+    });
   } catch (error) {
     console.error("Failed to toggle like:", error);
     return res.status(500).json({ error: "Failed to toggle like" });
