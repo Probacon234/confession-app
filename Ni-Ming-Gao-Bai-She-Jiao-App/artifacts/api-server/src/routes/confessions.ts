@@ -197,30 +197,44 @@ router.get("/confessions", async (req, res): Promise<void> => {
 
 
 // 使用者提交新告白貼文的路由
-// 將第一個參數改成 '/confessions'
-router.post('/confessions', async (req, res) => {
+// 手動重新發送失敗的 IG 貼文路由
+router.post('/confessions/:id/retry-ig', async (req, res): Promise<void> => {
   try {
-    const { content, category, authorId } = req.body;
+    const confessionId = Number(req.params.id);
 
-    // 1. 寫入資料庫
-    const [newConfession] = await db.insert(confessionsTable).values({
-      content,
-      category: category || 'all',
-      authorId: authorId || 'anonymous',
-    }).returning();
+    // 1. 將狀態改回 pending
+    await db.update(confessionsTable)
+      .set({ igStatus: 'pending', igError: null })
+      .where(eq(confessionsTable.id, confessionId));
 
-    // 2. 背景自動同步發送到 Instagram
-    try {
-      await publishConfessionToInstagram(newConfession.id);
-      console.log(`[IG Auto-Post] 貼文 #${newConfession.id} 已成功發布至 IG`);
-    } catch (igErr) {
-      console.error('[IG Auto-Post Failed]', igErr);
-    }
+    // 2. 立即回應
+    res.json({ message: `已開始重新為告白 #${confessionId} 補發至 IG` });
 
-    return res.status(201).json(newConfession);
+    // 3. 背景執行重試
+    publishConfessionToInstagram(confessionId)
+      .then(async () => {
+        console.log(`[IG Retry Success] 貼文 #${confessionId} 補發成功`);
+        await db.update(confessionsTable)
+          .set({ igStatus: 'published', igError: null })
+          .where(eq(confessionsTable.id, confessionId));
+      })
+      .catch(async (igErr) => {
+        console.error('[IG Retry Failed]', igErr);
+        await db.update(confessionsTable)
+          .set({ 
+            igStatus: 'failed', 
+            igError: igErr?.message || String(igErr) 
+          })
+          .where(eq(confessionsTable.id, confessionId));
+      });
+
+    return;
   } catch (error) {
-    console.error('Create confession error:', error);
-    return res.status(500).json({ error: '發文失敗' });
+    console.error('Retry IG post error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: '重試失敗' });
+    }
+    return;
   }
 });
 
