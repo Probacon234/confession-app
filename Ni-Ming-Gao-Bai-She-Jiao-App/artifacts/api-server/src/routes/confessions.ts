@@ -199,6 +199,7 @@ router.get("/confessions", async (req, res): Promise<void> => {
 // 使用者提交新告白貼文的路由
 // 手動重新發送失敗的 IG 貼文路由
 // 改为 relative 路径 '/'
+// 第一参数使用 '/' 相对路径
 router.post('/', async (req, res): Promise<void> => {
   try {
     const { content, category, authorId } = req.body;
@@ -211,7 +212,7 @@ router.post('/', async (req, res): Promise<void> => {
       igStatus: 'pending',
     }).returning();
 
-    // 2. 立即回应 201 给前端
+    // 2. 立即回应 201 给前端（极速体验）
     res.status(201).json(newConfession);
 
     // 3. 背景异步发送到 Instagram
@@ -240,33 +241,6 @@ router.post('/', async (req, res): Promise<void> => {
     }
     return;
   }
-});
-
-router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
-  const parsed = ListConfessionCommentsParams.safeParse(req.params);
-  if (!parsed.success) {
-    sendValidationError(res, parsed.error.message);
-    return;
-  }
-
-  const confession = await findConfession(parsed.data.id);
-  if (!confession) {
-    res.status(404).json({ error: "Confession not found" });
-    return;
-  }
-
-  const comments = await db
-    .select({
-      id: confessionCommentsTable.id,
-      confessionId: confessionCommentsTable.confessionId,
-      content: confessionCommentsTable.content,
-      createdAt: confessionCommentsTable.createdAt,
-    })
-    .from(confessionCommentsTable)
-    .where(eq(confessionCommentsTable.confessionId, confession.id))
-    .orderBy(confessionCommentsTable.createdAt, confessionCommentsTable.id);
-
-  res.json(ListConfessionCommentsResponse.parse(comments));
 });
 
 // 假設這是處理貼文的路由檔案
