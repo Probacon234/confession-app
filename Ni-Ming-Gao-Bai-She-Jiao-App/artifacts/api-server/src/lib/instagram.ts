@@ -28,7 +28,7 @@ export async function publishConfessionToInstagram(confessionId: number): Promis
     `/${igUserId}/media`,
     {
       image_url: `${base}/api/confession-image/${confessionId}.jpg`,
-      caption: `#Confession${confessionId}\n\n#Dream4U #ConfessionMIIT`,
+      caption: `#Confession${confessionId}\n\n#WeAreunikl #ConfessionMIIT #ConfessionMIIT2026`,
     },
     token,
   );
