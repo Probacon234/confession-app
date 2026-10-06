@@ -8,6 +8,8 @@ import {
   confessionReportsTable 
 } from "@workspace/db";
 import { getAuth } from "@clerk/express";
+import { publishConfessionToInstagram } from '../lib/instagram';
+import { generateConfessionCard } from '../lib/cardGenerator';
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
@@ -194,47 +196,31 @@ router.get("/confessions", async (req, res): Promise<void> => {
 });
 
 
-router.post("/confessions", async (req, res): Promise<void> => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
-
-  // 1. 檢查該使用者是否在自建黑名單內
+// 使用者提交新告白貼文的路由
+router.post('/', async (req, res) => {
   try {
-    const bannedRecord = await db
-      .select()
-      .from(bannedUsersTable)
-      .where(eq(bannedUsersTable.userId, userId))
-      .limit(1);
+    const { content, category, authorId } = req.body;
 
-    if (bannedRecord.length > 0) {
-      res.status(403).json({ message: "You have been banned from posting confessions." });
-      return;
-    }
-  } catch (err) {
-    console.error("Error checking ban status:", err);
-  }
+    // 1. 寫入資料庫
+    const [newConfession] = await db.insert(confessionsTable).values({
+      content,
+      category: category || 'all',
+      authorId: authorId || 'anonymous',
+    }).returning();
 
-  // 2. 正常發文邏輯
-  try {
-    const { content, category } = req.body;
-    if (!content) {
-      res.status(400).json({ message: "Content is required" });
-      return;
+    // 2. 背景自動發送到 Instagram（只需要傳入貼文 ID）
+    // 背景自動發送到 Instagram（只需要傳入貼文 ID）
+    try {
+      await publishConfessionToInstagram(newConfession.id);
+      console.log(`[IG Auto-Post] 貼文 #${newConfession.id} 已成功發布至 IG`);
+    } catch (igErr) {
+      console.error('[IG Auto-Post Failed]', igErr);
     }
 
-    const [newPost] = await db
-      .insert(confessionsTable)
-      .values({
-        content,
-        category: category || "life",
-        authorId: userId,
-      })
-      .returning();
-
-    res.status(201).json(newPost);
-  } catch (error: any) {
-    console.error("Failed to create confession:", error);
-    res.status(500).json({ message: error?.message || "Internal server error" });
+    return res.status(201).json(newConfession);
+  } catch (error) {
+    console.error('Create confession error:', error);
+    return res.status(500).json({ error: '發文失敗' });
   }
 });
 
