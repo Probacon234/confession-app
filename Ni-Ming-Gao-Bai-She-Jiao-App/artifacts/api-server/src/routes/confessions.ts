@@ -198,41 +198,45 @@ router.get("/confessions", async (req, res): Promise<void> => {
 
 // 使用者提交新告白貼文的路由
 // 手動重新發送失敗的 IG 貼文路由
-router.post('/confessions/:id/retry-ig', async (req, res): Promise<void> => {
+// 改为 relative 路径 '/'
+router.post('/', async (req, res): Promise<void> => {
   try {
-    const confessionId = Number(req.params.id);
+    const { content, category, authorId } = req.body;
 
-    // 1. 將狀態改回 pending
-    await db.update(confessionsTable)
-      .set({ igStatus: 'pending', igError: null })
-      .where(eq(confessionsTable.id, confessionId));
+    // 1. 写入数据库
+    const [newConfession] = await db.insert(confessionsTable).values({
+      content,
+      category: category || 'all',
+      authorId: authorId || 'anonymous',
+      igStatus: 'pending',
+    }).returning();
 
-    // 2. 立即回應
-    res.json({ message: `已開始重新為告白 #${confessionId} 補發至 IG` });
+    // 2. 立即回应 201 给前端
+    res.status(201).json(newConfession);
 
-    // 3. 背景執行重試
-    publishConfessionToInstagram(confessionId)
+    // 3. 背景异步发送到 Instagram
+    publishConfessionToInstagram(newConfession.id)
       .then(async () => {
-        console.log(`[IG Retry Success] 貼文 #${confessionId} 補發成功`);
+        console.log(`[IG Auto-Post] 贴文 #${newConfession.id} 已成功发布至 IG`);
         await db.update(confessionsTable)
           .set({ igStatus: 'published', igError: null })
-          .where(eq(confessionsTable.id, confessionId));
+          .where(eq(confessionsTable.id, newConfession.id));
       })
       .catch(async (igErr) => {
-        console.error('[IG Retry Failed]', igErr);
+        console.error('[IG Auto-Post Failed]', igErr);
         await db.update(confessionsTable)
           .set({ 
             igStatus: 'failed', 
             igError: igErr?.message || String(igErr) 
           })
-          .where(eq(confessionsTable.id, confessionId));
+          .where(eq(confessionsTable.id, newConfession.id));
       });
 
     return;
   } catch (error) {
-    console.error('Retry IG post error:', error);
+    console.error('Create confession error:', error);
     if (!res.headersSent) {
-      res.status(500).json({ error: '重試失敗' });
+      res.status(500).json({ error: '发文失败' });
     }
     return;
   }
