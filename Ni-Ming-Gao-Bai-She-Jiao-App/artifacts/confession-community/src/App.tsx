@@ -47,6 +47,32 @@ function ReportedItem({ report }: { report: any }) {
     }
   };
 
+  // 1. 在元件內宣告發布到 IG 的處理函式
+  const handlePostToInstagram = async (postId: string) => {
+  try {
+    // 請將這裡換成你在 Render 上的實際後端網址（例如 https://xxxx.onrender.com）
+    const RENDER_API_URL = 'https://你的render專案名稱.onrender.com';
+
+    const response = await fetch(`${RENDER_API_URL}/api/moderation/posts/${postId}/post-to-ig`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+    
+    if (response.ok) {
+      alert('成功發布到 Instagram！');
+    } else {
+      alert(`發布失敗: ${data.error || '未知錯誤'}`);
+    }
+  } catch (error) {
+    console.error('發布到 IG 時發生錯誤:', error);
+    alert('網路連線錯誤，發布失敗');
+  }
+  };
+
  // Delete post directly via API with detailed error logging
   const handleDeletePost = async () => {
     if (!window.confirm("Are you sure you want to delete this post permanently?")) {
@@ -162,6 +188,15 @@ function ReportedItem({ report }: { report: any }) {
 
       {/* Action Buttons */}
       <div className="flex gap-2 justify-end pt-2 border-t flex-wrap">
+        {/* 【功能標記：發布到 Instagram】
+  * 作用：讓管理員在審核貼文時，點擊即可直接將這則告白（透過 report.id）發布到綁定的 Instagram 帳號。
+  */}
+        <button
+            onClick={() => handlePostToInstagram(report.id)}
+            className="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 font-medium"
+        >
+          📸 Post to Instagram
+        </button>
         <button
           onClick={handleDeletePost}
           className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"

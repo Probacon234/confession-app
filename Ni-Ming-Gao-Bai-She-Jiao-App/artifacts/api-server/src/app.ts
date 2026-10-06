@@ -6,13 +6,13 @@ import express, {
   type Response,
 } from "express";
 import fs from "fs";
-import confessionImageRouter from "./routes/confessionImage";
 import path from "path";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import pinoHttp from "pino-http";
 import router from "./routes";
+import confessionImageRouter from "./routes/confessionImage";
 import { logger } from "./lib/logger";
 import {
   CLERK_PROXY_PATH,
@@ -21,9 +21,6 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
-
-app.use("/api/confession-image", confessionImageRouter);
-app.use("/api/moderation", moderationRouter);
 
 app.use(
   pinoHttp({
@@ -49,6 +46,7 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Clerk 必須在所有會用到 getAuth 的路由「之前」註冊
 app.use(
   clerkMiddleware((req) => ({
     publishableKey: publishableKeyFromHost(
@@ -58,11 +56,14 @@ app.use(
   })),
 );
 
+// 公開圖片路由（Meta 會來抓圖）
+app.use("/api/confession-image", confessionImageRouter);
+
 app.use("/api/moderation", moderationRouter);
 
 app.use("/api", router);
 
-// 1. 託管前端打包後的靜態檔案 (confession-community/dist/public)
+// 託管前端打包後的靜態檔案 (confession-community/dist/public)
 const clientDistPath = path.resolve(__dirname, "../../confession-community/dist/public");
 const indexPath = path.join(clientDistPath, "index.html");
 if (fs.existsSync(clientDistPath)) {
@@ -75,7 +76,8 @@ if (fs.existsSync(clientDistPath)) {
     }
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
-    } else {      res.status(404).send("Frontend build index.html not found.");
+    } else {
+      res.status(404).send("Frontend build index.html not found.");
     }
   });
 }
