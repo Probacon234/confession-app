@@ -197,9 +197,6 @@ router.get("/confessions", async (req, res): Promise<void> => {
 
 
 // 使用者提交新告白貼文的路由
-// 手動重新發送失敗的 IG 貼文路由
-// 改为 relative 路径 '/'
-// 第一参数使用 '/' 相对路径
 router.post('/', async (req, res): Promise<void> => {
   try {
     const { content, category, authorId } = req.body;
