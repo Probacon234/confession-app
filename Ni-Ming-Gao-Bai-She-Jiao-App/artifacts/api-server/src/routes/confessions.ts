@@ -4,6 +4,7 @@ import {
   db, 
   confessionCommentsTable, 
   confessionLikesTable, 
+  announcementsTable,
   confessionReportsTable 
 } from "@workspace/db";
 import { getAuth } from "@clerk/express";
@@ -264,6 +265,29 @@ router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
   res.json(ListConfessionCommentsResponse.parse(comments));
 });
 
+// 假設這是處理貼文的路由檔案
+router.post("/confessions/:id/like", async (req, res) => {
+  try {
+    const confessionId = parseInt(req.params.id);
+    // 取得當前登入使用者的 userId（從 header 或 req.body，依據你的身份驗證機制）
+    const userId = (req.headers["x-user-id"] as string) || req.body?.userId || "anonymous";
+
+    // 寫入點讚紀錄到 confessionLikesTable
+    await db
+      .insert(confessionLikesTable)
+      .values({
+        confessionId,
+        userId,
+      })
+      .onConflictDoNothing(); // 如果已經點過讚（主鍵重複）就忽略，避免重複點讚報錯
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to like confession:", error);
+    return res.status(500).json({ error: "Failed to like confession" });
+  }
+});
+
 router.post("/confessions/:id/comments", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -386,6 +410,24 @@ router.get("/confessions/:id", async (req, res): Promise<void> => {
   } catch (error: any) {
     console.error("Failed to fetch confession:", error);
     res.status(500).json({ message: error?.message || "Internal server error" });
+  }
+});
+
+// ==========================================
+// 取得所有生效中的公告 (前台用)
+// ==========================================
+router.get("/announcements", async (req, res): Promise<void> => {
+  try {
+    const announcements = await db
+      .select()
+      .from(announcementsTable)
+      .where(eq(announcementsTable.isActive, true))
+      .orderBy(desc(announcementsTable.createdAt));
+
+    res.json(announcements);
+  } catch (error: any) {
+    console.error("Failed to fetch announcements:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
