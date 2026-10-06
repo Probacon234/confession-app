@@ -266,12 +266,19 @@ router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
 });
 
 // 假設這是處理貼文的路由檔案
-router.post("/confessions/:id/like", async (req, res) => {
+router.post("/confessions/:id/like", async (req, res): Promise<void> => {
   try {
     const confessionId = parseInt(req.params.id);
-    const userId = (req.headers["x-user-id"] as string) || req.body?.userId || "anonymous";
+    
+    // 🌟 1. 使用與 GET API 完全一致的方式取得 Clerk Auth userId
+    const userId = getAuth(req).userId;
 
-    // 1. 檢查資料庫是否已有點讚紀錄
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized: User not signed in" });
+      return;
+    }
+
+    // 🌟 2. 檢查目前使用者是否已經點過讚
     const existingLike = await db
       .select()
       .from(confessionLikesTable)
@@ -286,7 +293,7 @@ router.post("/confessions/:id/like", async (req, res) => {
     let likedByMe = false;
 
     if (existingLike.length > 0) {
-      // 已點讚 -> 刪除（取消點讚）
+      // 已點讚 -> 刪除紀錄（取消讚）
       await db
         .delete(confessionLikesTable)
         .where(
@@ -305,21 +312,23 @@ router.post("/confessions/:id/like", async (req, res) => {
       likedByMe = true;
     }
 
-    // 2. 算出現有總點讚數
-    const totalLikes = await db
-      .select()
+    // 🌟 3. 計算該貼文最新的總點讚數
+    const [likeCountResult] = await db
+      .select({ total: count() })
       .from(confessionLikesTable)
       .where(eq(confessionLikesTable.confessionId, confessionId));
 
-    // 🌟 回傳前端需要的 likedByMe 與 likes 欄位
-    return res.json({ 
-      id: confessionId, 
-      likedByMe, 
-      likes: totalLikes.length 
+    const likesCount = Number(likeCountResult?.total || 0);
+
+    // 🌟 4. 回傳包含 likedByMe 與 likes 欄位的物件
+    res.json({
+      id: confessionId,
+      likedByMe,
+      likes: likesCount,
     });
   } catch (error) {
     console.error("Failed to toggle like:", error);
-    return res.status(500).json({ error: "Failed to toggle like" });
+    res.status(500).json({ error: "Failed to toggle like" });
   }
 });
 
