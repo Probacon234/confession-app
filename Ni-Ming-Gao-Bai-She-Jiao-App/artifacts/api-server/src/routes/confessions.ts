@@ -197,7 +197,8 @@ router.get("/confessions", async (req, res): Promise<void> => {
 
 
 // 使用者提交新告白貼文的路由
-router.post('/', async (req, res): Promise<void> => {
+// 将第一参数改回 '/confessions'
+router.post('/confessions', async (req, res): Promise<void> => {
   try {
     const { content, category, authorId } = req.body;
 
