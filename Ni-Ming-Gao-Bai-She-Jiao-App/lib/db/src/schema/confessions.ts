@@ -19,6 +19,8 @@ export const confessionsTable = pgTable(
     content: text("content").notNull(),
     category: text("category").notNull(),
     authorId: text("author_id").notNull(),
+    igMediaId: text("ig_media_id"),
+    igPostedAt: timestamp("ig_posted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

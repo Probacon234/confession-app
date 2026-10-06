@@ -30,9 +30,11 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      "@napi-rs/canvas",
       "better-sqlite3",
       "sqlite3",
       "canvas",
+      "@napi-rs/canvas",
       "bcrypt",
       "argon2",
       "fsevents",

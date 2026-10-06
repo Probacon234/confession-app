@@ -1,5 +1,5 @@
 import { clerkClient, getAuth } from "@clerk/express";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   GetModerationAccessResponse,
@@ -18,6 +18,7 @@ import {
   db,
 } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { publishConfessionToInstagram } from "../lib/instagram";
 
 const router: IRouter = Router();
 type ModeratorCheck = "allowed" | "denied" | "unavailable";
@@ -380,6 +381,9 @@ router.delete("/announcements/:id", async (req, res) => {
   try {
     const userEmail = req.headers["x-user-email"] || req.body?.email;
     const moderatorEmails = process.env.CONFESSION_MODERATOR_EMAILS || "";
+    
+    // 🔍 加上這行來印出除錯訊息，查看雲端實際收到的內容
+    console.log("【Access Control Check】Received email address:", userEmail, "| Allowed administrator mailbox:", moderatorEmails);
 
     if (!userEmail || !moderatorEmails.includes(String(userEmail))) {
       return res.status(403).json({ error: "Unauthorized: You are not a moderator" });
@@ -390,11 +394,58 @@ router.delete("/announcements/:id", async (req, res) => {
       .delete(announcementsTable)
       .where(eq(announcementsTable.id, id));
     
-    return res.json({ success: true }); // 🌟 加上 return
+    return res.json({ success: true });
   } catch (error) {
     console.error("Failed to delete announcement:", error);
-    return res.status(500).json({ error: "Failed to delete announcement" }); // 🌟 加上 return
+    return res.status(500).json({ error: "Failed to delete announcement" });
   }
+});
+
+router.post("/confessions/:id/instagram", async (req: Request, res: Response): Promise<void> => {
+  if (!(await hasModeratorAccess(req, res))) return;
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Invalid confession ID" });
+    return;
+  }
+
+  const [claimed] = await db
+    .update(confessionsTable)
+    .set({ igPostedAt: new Date() })
+    .where(and(eq(confessionsTable.id, id), isNull(confessionsTable.igPostedAt)))
+    .returning({ id: confessionsTable.id });
+
+  if (!claimed) {
+    const [existing] = await db
+      .select({ id: confessionsTable.id })
+      .from(confessionsTable)
+      .where(eq(confessionsTable.id, id))
+      .limit(1);
+    res
+      .status(existing ? 409 : 404)
+      .json({ error: existing ? "Already posted to Instagram" : "Confession not found" });
+    return;
+  }
+
+  let mediaId: string;
+  try {
+    mediaId = await publishConfessionToInstagram(id);
+  } catch (error) {
+    logger.error({ err: error, confessionId: id }, "Failed to publish to Instagram");
+    await db
+      .update(confessionsTable)
+      .set({ igPostedAt: null })
+      .where(eq(confessionsTable.id, id));
+    res.status(502).json({ error: "Failed to publish to Instagram" });
+    return;
+  }
+
+  await db
+    .update(confessionsTable)
+    .set({ igMediaId: mediaId })
+    .where(eq(confessionsTable.id, id));
+  res.json({ success: true, igMediaId: mediaId });
 });
 
 export default router;

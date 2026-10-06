@@ -6,6 +6,7 @@ import express, {
   type Response,
 } from "express";
 import fs from "fs";
+import confessionImageRouter from "./routes/confessionImage";
 import path from "path";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
@@ -20,6 +21,9 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
+
+app.use("/api/confession-image", confessionImageRouter);
+app.use("/api/moderation", moderationRouter);
 
 app.use(
   pinoHttp({
