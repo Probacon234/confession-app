@@ -197,7 +197,8 @@ router.get("/confessions", async (req, res): Promise<void> => {
 
 
 // 使用者提交新告白貼文的路由
-router.post('/', async (req, res) => {
+// 將第一個參數改成 '/confessions'
+router.post('/confessions', async (req, res) => {
   try {
     const { content, category, authorId } = req.body;
 
@@ -208,8 +209,7 @@ router.post('/', async (req, res) => {
       authorId: authorId || 'anonymous',
     }).returning();
 
-    // 2. 背景自動發送到 Instagram（只需要傳入貼文 ID）
-    // 背景自動發送到 Instagram（只需要傳入貼文 ID）
+    // 2. 背景自動同步發送到 Instagram
     try {
       await publishConfessionToInstagram(newConfession.id);
       console.log(`[IG Auto-Post] 貼文 #${newConfession.id} 已成功發布至 IG`);
