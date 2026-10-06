@@ -16,6 +16,8 @@ export const confessionsTable = pgTable(
   "confessions",
   {
     id: serial("id").primaryKey(),
+    igStatus: text("ig_status").default("pending"), // 狀態：'pending' | 'published' | 'failed'
+    igError: text("ig_error"),                      // 記錄失敗原因
     content: text("content").notNull(),
     category: text("category").notNull(),
     authorId: text("author_id").notNull(),
