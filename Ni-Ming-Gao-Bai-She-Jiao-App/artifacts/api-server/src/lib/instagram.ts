@@ -28,7 +28,11 @@ export async function publishConfessionToInstagram(confessionId: number): Promis
     `/${igUserId}/media`,
     {
       image_url: `${base}/api/confession-image/${confessionId}.jpg`,
-      caption: `#Confession${confessionId}\n\n#WeAreunikl #ConfessionMIIT #ConfessionMIIT2026 #uniklmiit #unikl`,
+      caption: `This is unofficial account, all Website is Make by uniklMIIT Student.You can post on website and it will synchronized update to IG
+      https://dream4u.my/
+      FAQ Link at below
+      https://docs.google.com/document/d/1QD_jZMU0uUYMhxdyYMvWNroOYCUCNmTkLOs7sT0Y_CY/edit?tab=t.0
+      #Confession${confessionId}\n\n#WeAreunikl #ConfessionMIIT #ConfessionMIIT2026 #uniklmiit #unikl`,
     },
     token,
   );
