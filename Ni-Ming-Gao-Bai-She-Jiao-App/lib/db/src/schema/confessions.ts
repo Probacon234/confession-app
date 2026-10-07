@@ -130,3 +130,13 @@ export const insertAnnouncementSchema = createInsertSchema(announcementsTable).o
   id: true,
   createdAt: true,
 });
+
+
+   // 一般設定 (App settings)：例如 Instagram token 自動刷新用
+   export const appSettingsTable = pgTable("app_settings", {
+     key: text("key").primaryKey(),
+     value: text("value").notNull(),
+     updatedAt: timestamp("updated_at", { withTimezone: true })
+       .notNull()
+       .defaultNow(),
+   });
