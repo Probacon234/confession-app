@@ -346,6 +346,33 @@ router.post("/confessions/:id/comments", async (req, res): Promise<void> => {
   res.status(201).json(CreateConfessionCommentResponse.parse(created));
 });
 
+router.get("/confessions/:id/comments", async (req, res): Promise<void> => {
+  const parsed = ListConfessionCommentsParams.safeParse(req.params);
+  if (!parsed.success) {
+    sendValidationError(res, parsed.error.message);
+    return;
+  }
+
+  const confession = await findConfession(parsed.data.id);
+  if (!confession) {
+    res.status(404).json({ error: "Confession not found" });
+    return;
+  }
+
+  const comments = await db
+    .select({
+      id: confessionCommentsTable.id,
+      confessionId: confessionCommentsTable.confessionId,
+      content: confessionCommentsTable.content,
+      createdAt: confessionCommentsTable.createdAt,
+    })
+    .from(confessionCommentsTable)
+    .where(eq(confessionCommentsTable.confessionId, confession.id))
+    .orderBy(confessionCommentsTable.createdAt, confessionCommentsTable.id);
+
+  res.json(ListConfessionCommentsResponse.parse(comments));
+});
+
 router.post("/confessions/:id/reports", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
