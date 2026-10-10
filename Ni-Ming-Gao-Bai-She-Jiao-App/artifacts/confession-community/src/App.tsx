@@ -465,6 +465,8 @@ const isAdmin = Boolean((moderationAccess as any)?.allowed);
   const { openSignIn } = useClerk();
   const [composeOpen, setComposeOpen] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
+const [submitting, setSubmitting] = useState(false);
+const [submitFailed, setSubmitFailed] = useState(false);
   const [notice, setNotice] = useState('');
   const [, setLocation] = useLocation();
   const params = { sort, ...(category === 'all' ? {} : { category }) };
@@ -556,29 +558,28 @@ const isAdmin = Boolean((moderationAccess as any)?.allowed);
       </section>
       <Footer />
     </main>
-  {composeOpen && (
+    {composeOpen && (
   <ComposeModal
     close={() => setComposeOpen(false)}
     isAdmin={isAdmin}
-    error={Boolean(create.error)}
-    pending={create.isPending}
+    error={submitFailed}
+    pending={submitting}
     onSubmit={(data) => {
+      if (submitting) return;
       if (!isSignedIn) {
         openSignIn();
         return;
       }
 
       void (async () => {
+        setSubmitting(true);
+        setSubmitFailed(false);
         try {
           const token = await getToken({ skipCache: true });
-          
           if (!token) {
-            console.error('No token fetched');
             openSignIn();
             return;
           }
-
-          console.log('Sending token:', token);
 
           const res = await fetch('/api/confessions', {
             method: 'POST',
@@ -594,11 +595,14 @@ const isAdmin = Boolean((moderationAccess as any)?.allowed);
             setNotice('Your words have found a place on the wall.');
             cache.invalidateQueries({ queryKey: getListConfessionsQueryKey() });
           } else {
-            const errorText = await res.text();
-            console.error('401 Error response:', res.status, errorText);
+            console.error('Create confession failed:', res.status);
+            setSubmitFailed(true);
           }
         } catch (err) {
           console.error('Fetch error:', err);
+          setSubmitFailed(true);
+        } finally {
+          setSubmitting(false);
         }
       })();
     }}

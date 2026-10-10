@@ -17,9 +17,14 @@ const STYLE = {
 
   // 字大小
   maxFont: 64, // 內文最大字級（字少時用這個）
-  minFont: 30, // 內文最小字級（字很多時縮到這個）
+  minFont: 30, // 單頁塞得下的最小字級（再小就改成分頁）
   headerSize: 38, // 頁首標題字大小
   footerSize: 32,
+
+  // 長文分頁（單頁塞不下時才會用到）
+  pageFont: 32, // 分頁時的內文字級（調小 → 每頁字更多、頁數更少）
+  pageIndicatorSize: 28, // 頁碼 "1 / 3" 的字大小
+  maxPages: 10, // IG 輪播最多 10 張
 
   // 頁尾文字
   footerText: "@confessionmiit",
@@ -139,40 +144,114 @@ function roundedRect(
   ctx.closePath();
 }
 
+// ---- 版面常數（1:1 正方形） ----
+const SIZE = 1080;
+const PANEL = 60;
+const AREA_TOP = 250; // 內文區上緣
+const AREA_BOTTOM = 840; // 內文區下緣
+const AREA_H = AREA_BOTTOM - AREA_TOP;
+const MAX_W = SIZE - PANEL * 2 - 180; // 左右各留 90
+const LINE_RATIO = 1.6;
+
+const font = (px: number) => `${px}px ${FAMILY}, sans-serif`;
+
+type Layout =
+  | { paged: false; fontSize: number; lines: string[] }
+  | { paged: true; fontSize: number; pages: string[][] };
+
+// 決定這篇貼文是單頁還是分頁，並算好每一頁要放哪些行
+function layoutText(rawText: string): Layout {
+  ensureFont();
+  const ctx = createCanvas(SIZE, SIZE).getContext("2d");
+  const text =
+    stripEmoji(rawText).replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim() || " ";
+
+  // 1. 先試單頁：字級從大到小，塞得下就用單頁（外觀跟以前一樣）
+  for (let px = STYLE.maxFont; px >= STYLE.minFont; px -= 2) {
+    ctx.font = font(px);
+    const lines = wrap(ctx, text, MAX_W);
+    if (lines.length * px * LINE_RATIO <= AREA_H) {
+      return { paged: false, fontSize: px, lines };
+    }
+  }
+
+  // 2. 單頁塞不下 → 用固定字級分頁
+  const fontSize = STYLE.pageFont;
+  ctx.font = font(fontSize);
+  let lines = wrap(ctx, text, MAX_W);
+  const maxPerPage = Math.max(1, Math.floor(AREA_H / (fontSize * LINE_RATIO)));
+  let pageCount = Math.ceil(lines.length / maxPerPage);
+  let truncated = false;
+  if (pageCount > STYLE.maxPages) {
+    pageCount = STYLE.maxPages;
+    lines = lines.slice(0, maxPerPage * pageCount);
+    truncated = true;
+  }
+
+  // 平均分配每頁行數，避免最後一頁只剩一兩行
+  const perPage = Math.ceil(lines.length / pageCount);
+  const pages: string[][] = [];
+  for (let i = 0; i < pageCount; i++) {
+    const chunk = lines.slice(i * perPage, (i + 1) * perPage);
+    while (chunk.length && chunk[0].trim() === "") chunk.shift();
+    while (chunk.length && chunk[chunk.length - 1].trim() === "") chunk.pop();
+    if (chunk.length) pages.push(chunk);
+  }
+
+  // 超過 10 頁的極端情況：最後一行加上 …
+  if (truncated && pages.length) {
+    const last = pages[pages.length - 1];
+    last[last.length - 1] = last[last.length - 1].replace(/.$/, "") + "…";
+  }
+
+  if (pages.length <= 1) {
+    return { paged: false, fontSize, lines: pages[0] ?? [text] };
+  }
+  return { paged: true, fontSize, pages };
+}
+
+// 這篇貼文會被切成幾頁（1 = 單張圖）
+export function countConfessionPages(rawText: string): number {
+  const layout = layoutText(rawText);
+  return layout.paged ? layout.pages.length : 1;
+}
+
 export function renderConfession(
   rawText: string,
   id: number,
   category?: string | null,
+  page = 1,
 ): Buffer {
   ensureFont();
 
-  const size = 1080; // 1:1 正方形
-  const canvas = createCanvas(size, size);
+  const layout = layoutText(rawText);
+  const totalPages = layout.paged ? layout.pages.length : 1;
+  const pageIndex = Math.min(Math.max(1, Math.floor(page) || 1), totalPages) - 1;
+
+  const canvas = createCanvas(SIZE, SIZE);
   const ctx = canvas.getContext("2d");
-  const font = (px: number) => `${px}px ${FAMILY}, sans-serif`;
 
   // 背景
   ctx.fillStyle = STYLE.bg;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, SIZE, SIZE);
 
   ctx.fillStyle = STYLE.circleTop;
   ctx.beginPath();
-  ctx.arc(size - 20, 40, 400, 0, Math.PI * 2);
+  ctx.arc(SIZE - 20, 40, 400, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle = STYLE.circleBottom;
   ctx.beginPath();
-  ctx.arc(60, size + 20, 360, 0, Math.PI * 2);
+  ctx.arc(60, SIZE + 20, 360, 0, Math.PI * 2);
   ctx.fill();
 
   // 半透明白色卡片
-  const panel = 60;
   ctx.fillStyle = STYLE.panel;
-  roundedRect(ctx, panel, panel, size - panel * 2, size - panel * 2, 56);
+  roundedRect(ctx, PANEL, PANEL, SIZE - PANEL * 2, SIZE - PANEL * 2, 56);
   ctx.fill();
 
   ctx.textBaseline = "top";
-  const cx = size / 2;
+  const cx = SIZE / 2;
 
   // 頁首：一行標題，例如 "#Confession69 · Life"
   let label = stripEmoji(categoryLabel(category)).trim();
@@ -197,37 +276,25 @@ export function renderConfession(
   ctx.textAlign = "center";
   ctx.fillText(STYLE.footerText, cx, 880);
 
-  // 內文區域的上緣
-  const areaTop = 250;
+  // 頁碼（只有分頁時才顯示）
+  if (totalPages > 1) {
+    ctx.font = font(STYLE.pageIndicatorSize);
+    ctx.fillText(`${pageIndex + 1} / ${totalPages}`, cx, 934);
+  }
 
   // 內文
-  const text = stripEmoji(rawText).trim() || " ";
-  const areaBottom = 840;
-  const areaH = areaBottom - areaTop;
-  const maxW = size - panel * 2 - 180; // 左右各留 90
-  const lineRatio = 1.6;
-
-  let fontSize = STYLE.maxFont;
-  let lines: string[] = [];
-  for (; fontSize >= STYLE.minFont; fontSize -= 2) {
-    ctx.font = font(fontSize);
-    lines = wrap(ctx, text, maxW);
-    if (lines.length * fontSize * lineRatio <= areaH) break;
-  }
-  const maxLines = Math.floor(areaH / (fontSize * lineRatio));
-  if (lines.length > maxLines) {
-    lines = lines.slice(0, maxLines);
-    lines[lines.length - 1] = lines[lines.length - 1].replace(/.$/, "") + "…";
-  }
-
-  const lineH = fontSize * lineRatio;
-  const startY = areaTop + (areaH - lines.length * lineH) / 2;
-  const center = lines.length <= 6;
+  const fontSize = layout.fontSize;
+  const lineH = fontSize * LINE_RATIO;
+  const lines = layout.paged ? layout.pages[pageIndex] : layout.lines;
+  const centered = !layout.paged && lines.length <= 6;
+  const startY = layout.paged
+    ? AREA_TOP
+    : AREA_TOP + (AREA_H - lines.length * lineH) / 2;
 
   ctx.fillStyle = STYLE.text;
   ctx.font = font(fontSize);
-  ctx.textAlign = center ? "center" : "left";
-  const textX = center ? cx : panel + 90;
+  ctx.textAlign = centered ? "center" : "left";
+  const textX = centered ? cx : PANEL + 90;
   lines.forEach((l, i) => {
     ctx.fillText(l, textX, startY + i * lineH);
   });

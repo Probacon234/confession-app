@@ -11,6 +11,9 @@ router.get("/:file", async (req, res): Promise<void> => {
     res.sendStatus(404);
     return;
   }
+  const pageParam = parseInt(String(req.query.page ?? "1"), 10);
+  const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+
   const [post] = await db
     .select({
       id: confessionsTable.id,
@@ -27,7 +30,7 @@ router.get("/:file", async (req, res): Promise<void> => {
   res
     .type("image/jpeg")
     .set("Cache-Control", "public, max-age=3600")
-    .send(renderConfession(post.content, post.id, post.category));
+    .send(renderConfession(post.content, post.id, post.category, page));
 });
 
 export default router;
