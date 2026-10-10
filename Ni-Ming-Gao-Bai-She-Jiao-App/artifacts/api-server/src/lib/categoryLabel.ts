@@ -14,6 +14,7 @@ const LABELS: Record<string, string> = {
   work: "Work",
   hidup: "Life",
   life: "Life",
+  admin: "ADMIN",
 };
 
 export function categoryLabel(raw?: string | null): string {
