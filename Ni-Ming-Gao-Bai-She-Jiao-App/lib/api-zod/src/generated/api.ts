@@ -30,7 +30,7 @@ export const ListConfessionsQueryParams = zod.object({
 export const ListConfessionsResponseItem = zod.object({
   "id": zod.number().int(),
   "content": zod.string(),
-  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']),
+  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']),
   "createdAt": zod.coerce.date(),
   "likes": zod.number().int(),
   "commentsCount": zod.number().int(),
@@ -48,13 +48,13 @@ export const createConfessionBodyContentMax = 1200;
 
 export const CreateConfessionBody = zod.object({
   "content": zod.string().min(1).max(createConfessionBodyContentMax),
-  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life'])
+  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin'])
 })
 
 export const CreateConfessionResponse = zod.object({
   "id": zod.number().int(),
   "content": zod.string(),
-  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']),
+  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']),
   "createdAt": zod.coerce.date(),
   "likes": zod.number().int(),
   "commentsCount": zod.number().int(),
@@ -72,7 +72,7 @@ export const GetConfessionParams = zod.object({
 export const GetConfessionResponse = zod.object({
   "id": zod.number().int(),
   "content": zod.string(),
-  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']),
+  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']),
   "createdAt": zod.coerce.date(),
   "likes": zod.number().int(),
   "commentsCount": zod.number().int(),
@@ -189,7 +189,7 @@ export const ListModerationReportsResponseItem = zod.object({
   "status": zod.enum(['new', 'reviewed']),
   "reportedAt": zod.coerce.date(),
   "confessionContent": zod.string(),
-  "confessionCategory": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']),
+  "confessionCategory": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']),
   "confessionCreatedAt": zod.coerce.date()
 })
 export const ListModerationReportsResponse = zod.array(ListModerationReportsResponseItem)
@@ -214,7 +214,7 @@ export const UpdateModerationReportResponse = zod.object({
   "status": zod.enum(['new', 'reviewed']),
   "reportedAt": zod.coerce.date(),
   "confessionContent": zod.string(),
-  "confessionCategory": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']),
+  "confessionCategory": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']),
   "confessionCreatedAt": zod.coerce.date()
 })
 

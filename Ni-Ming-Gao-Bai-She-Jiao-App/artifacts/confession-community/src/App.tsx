@@ -342,13 +342,13 @@ const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const categories: { value: ConfessionCategory | 'all'; label: string }[] = [
   { value: 'all', label: 'Semua cerita' }, { value: 'love', label: 'Cinta' },
   { value: 'friendship', label: 'Persahabatan' }, { value: 'family', label: 'Keluarga' },
-  { value: 'school', label: 'Belajar' }, { value: 'work', label: 'Kerja' }, { value: 'life', label: 'Hidup' },
+  { value: 'school', label: 'Belajar' }, { value: 'work', label: 'Kerja' }, { value: 'life', label: 'Hidup' }, { value: 'admin', label: 'ADMIN' },
 ];
 const englishCategories: Record<ConfessionCategory, string> = {
-  love: 'Love', friendship: 'Friendship', family: 'Family', school: 'School', work: 'Work', life: 'Life',
+  love: 'Love', friendship: 'Friendship', family: 'Family', school: 'School', work: 'Work', life: 'Life', admin: 'ADMIN',
 };
 const categoryColors: Record<ConfessionCategory, string> = {
-  love: 'rose', friendship: 'sage', family: 'honey', school: 'sky', work: 'plum', life: 'olive',
+  love: 'rose', friendship: 'sage', family: 'honey', school: 'sky', work: 'plum', life: 'olive', admin: 'plum',
 };
 
 function stripBase(path: string) {
@@ -460,6 +460,8 @@ function HomePage() {
   const [category, setCategory] = useState<ConfessionCategory | 'all'>('all');
   const [sort, setSort] = useState<'latest' | 'popular'>('latest');
   const { isSignedIn, getToken } = useAuth();
+const { data: moderationAccess } = useGetModerationAccess({ query: { enabled: Boolean(isSignedIn), retry: false } as any });
+const isAdmin = Boolean((moderationAccess as any)?.allowed);
   const { openSignIn } = useClerk();
   const [composeOpen, setComposeOpen] = useState(false);
   const [reportId, setReportId] = useState<number | null>(null);
@@ -557,6 +559,7 @@ function HomePage() {
   {composeOpen && (
   <ComposeModal
     close={() => setComposeOpen(false)}
+    isAdmin={isAdmin}
     error={Boolean(create.error)}
     pending={create.isPending}
     onSubmit={(data) => {
@@ -668,7 +671,7 @@ function ConfessionPage() {
   </main><Footer />{reportOpen && <ReportModal id={id} close={() => setReportOpen(false)} onSuccess={() => setNotice('Thank you. Your report has been received with care.')} />}</div>;
 }
 
-function ComposeModal({ close, onSubmit, pending, error }: { close: () => void; onSubmit: (data: { content: string; category: ConfessionCategory }) => void; pending: boolean; error: boolean }) {
+function ComposeModal({ close, onSubmit, pending, error, isAdmin }: { close: () => void; onSubmit: (data: { content: string; category: ConfessionCategory }) => void; pending: boolean; error: boolean; isAdmin: boolean }) {
   const { isSignedIn } = useUser();
   const [text, setText] = useState('');
   const [category, setCategory] = useState<ConfessionCategory>('life');
@@ -690,7 +693,7 @@ function ComposeModal({ close, onSubmit, pending, error }: { close: () => void; 
         <div className="form-meta"><span>Take your time</span><span>{text.length}/1200</span></div>
         <label className="field-label" htmlFor="confession-category">What does it touch?</label>
         <select id="confession-category" value={category} onChange={event => setCategory(event.target.value as ConfessionCategory)} data-testid="select-confession-category">
-          {categories.filter(item => item.value !== 'all').map(item => <option value={item.value} key={item.value}>{item.label} · {englishCategories[item.value as ConfessionCategory]}</option>)}
+          {categories.filter(item => item.value !== 'all' && (item.value !== 'admin' || isAdmin)).map(item => <option value={item.value} key={item.value}>{item.value === 'admin' ? 'ADMIN' : `${item.label} · ${englishCategories[item.value as ConfessionCategory]}`}</option>)}
         </select>
         {signInPrompt && <div className="sign-in-callout">To share or respond, please <Link href="/sign-in" onClick={close}>sign in</Link>. Your name still stays with you.</div>}
         {error && <p className="form-error">We couldn't place this on the wall just yet. Please try again.</p>}

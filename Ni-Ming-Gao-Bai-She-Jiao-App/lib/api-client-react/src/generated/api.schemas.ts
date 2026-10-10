@@ -19,6 +19,7 @@ export const ConfessionCategory = {
   school: 'school',
   work: 'work',
   life: 'life',
+  admin: 'admin',
 } as const;
 
 export interface Confession {
@@ -43,6 +44,7 @@ export const ConfessionInputCategory = {
   school: 'school',
   work: 'work',
   life: 'life',
+  admin: 'admin',
 } as const;
 
 export interface ConfessionInput {
@@ -129,6 +131,7 @@ export const ModerationReportConfessionCategory = {
   school: 'school',
   work: 'work',
   life: 'life',
+  admin: 'admin',
 } as const;
 
 export interface ModerationReport {

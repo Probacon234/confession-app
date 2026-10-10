@@ -300,7 +300,7 @@ components:
           type: string
         category:
           type: string
-          enum: [love, friendship, family, school, work, life]
+          enum: [love, friendship, family, school, work, life, admin]
         createdAt:
           type: string
           format: date-time
@@ -324,7 +324,7 @@ components:
           maxLength: 1200
         category:
           type: string
-          enum: [love, friendship, family, school, work, life]
+          enum: [love, friendship, family, school, work, life, admin]
       required: [content, category]
     Comment:
       type: object
@@ -405,7 +405,7 @@ components:
           type: string
         confessionCategory:
           type: string
-          enum: [love, friendship, family, school, work, life]
+          enum: [love, friendship, family, school, work, life, admin]
         confessionCreatedAt:
           type: string
           format: date-time
