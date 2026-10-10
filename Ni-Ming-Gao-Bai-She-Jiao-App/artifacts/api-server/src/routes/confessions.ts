@@ -7,6 +7,7 @@ import {
   announcementsTable,
   confessionReportsTable 
 } from "@workspace/db";
+import { checkModerator } from "./moderation";
 import { getAuth } from "@clerk/express";
 import { publishConfessionToInstagram } from '../lib/instagram';
 import { generateConfessionCard } from '../lib/cardGenerator';
@@ -200,20 +201,39 @@ router.get("/confessions", async (req, res): Promise<void> => {
 // 将第一参数改回 '/confessions'
 router.post('/confessions', async (req, res): Promise<void> => {
   try {
-    const { content, category, authorId } = req.body;
+        const { content, category, authorId } = req.body;
+
+    // ADMIN 分類：只有管理員能發（在後端驗證，不信任前端）
+    const isAdminCategory =
+      typeof category === "string" && category.trim().toLowerCase() === "admin";
+    if (isAdminCategory) {
+      const adminUserId = getAuth(req).userId;
+      if (!adminUserId) {
+        res.status(401).json({ error: "Sign-in required" });
+        return;
+      }
+      const check = await checkModerator(adminUserId);
+      if (check !== "allowed") {
+        res.status(check === "denied" ? 403 : 503).json({
+          error: "Only admins can post in the ADMIN category",
+        });
+        return;
+      }
+    }
 
     // 1. 写入数据库
     const [newConfession] = await db.insert(confessionsTable).values({
       content,
-      category: category || 'all',
-      authorId: authorId || 'anonymous',
-      igStatus: 'pending',
+      category: isAdminCategory ? "admin" : category || "all",
+      authorId: authorId || "anonymous",
+      igStatus: "pending",
     }).returning();
 
-    // 2. 立即回应 201 给前端（极速体验）
+  
+    // 2. 立即回應 201 給前端（極速體驗）
     res.status(201).json(newConfession);
 
-    // 3. 背景异步发送到 Instagram
+    // 3. 背景異步發送到 Instagram
     publishConfessionToInstagram(newConfession.id)
       .then(async () => {
         console.log(`[IG Auto-Post] 贴文 #${newConfession.id} 已成功发布至 IG`);
@@ -224,9 +244,9 @@ router.post('/confessions', async (req, res): Promise<void> => {
       .catch(async (igErr) => {
         console.error('[IG Auto-Post Failed]', igErr);
         await db.update(confessionsTable)
-          .set({ 
-            igStatus: 'failed', 
-            igError: igErr?.message || String(igErr) 
+          .set({
+            igStatus: 'failed',
+            igError: igErr?.message || String(igErr)
           })
           .where(eq(confessionsTable.id, newConfession.id));
       });
@@ -239,7 +259,7 @@ router.post('/confessions', async (req, res): Promise<void> => {
     }
     return;
   }
-});
+  });
 
 // 假設這是處理貼文的路由檔案
 router.post("/confessions/:id/like", async (req, res): Promise<void> => {

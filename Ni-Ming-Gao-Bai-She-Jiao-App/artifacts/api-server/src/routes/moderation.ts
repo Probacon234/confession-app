@@ -23,7 +23,7 @@ import { publishConfessionToInstagram } from "../lib/instagram";
 const router: IRouter = Router();
 type ModeratorCheck = "allowed" | "denied" | "unavailable";
 
-async function checkModerator(userId: string): Promise<ModeratorCheck> {
+export async function checkModerator(userId: string): Promise<ModeratorCheck> {
   const allowedEmails = new Set(
     (process.env.CONFESSION_MODERATOR_EMAILS ?? "")
       .split(",")

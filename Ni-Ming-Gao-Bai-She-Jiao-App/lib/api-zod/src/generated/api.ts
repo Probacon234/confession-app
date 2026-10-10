@@ -24,7 +24,7 @@ export const listConfessionsQuerySortDefault = `latest`;
 
 export const ListConfessionsQueryParams = zod.object({
   "sort": zod.enum(['latest', 'popular']).default(listConfessionsQuerySortDefault),
-  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life']).optional()
+  "category": zod.enum(['love', 'friendship', 'family', 'school', 'work', 'life', 'admin']).optional()
 })
 
 export const ListConfessionsResponseItem = zod.object({

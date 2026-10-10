@@ -16,4 +16,5 @@ export const ListConfessionsCategory = {
   school: 'school',
   work: 'work',
   life: 'life',
+  admin: 'admin',
 } as const;
