@@ -12,7 +12,11 @@ router.get("/:file", async (req, res): Promise<void> => {
     return;
   }
   const [post] = await db
-    .select({ id: confessionsTable.id, content: confessionsTable.content })
+    .select({
+      id: confessionsTable.id,
+      content: confessionsTable.content,
+      category: confessionsTable.category,
+    })
     .from(confessionsTable)
     .where(eq(confessionsTable.id, id))
     .limit(1);
@@ -23,7 +27,7 @@ router.get("/:file", async (req, res): Promise<void> => {
   res
     .type("image/jpeg")
     .set("Cache-Control", "public, max-age=3600")
-    .send(renderConfession(post.content, post.id));
+    .send(renderConfession(post.content, post.id, post.category));
 });
 
 export default router;
