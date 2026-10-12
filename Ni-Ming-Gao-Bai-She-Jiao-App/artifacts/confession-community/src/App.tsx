@@ -22,6 +22,7 @@ import {
   getGetCommunitySummaryQueryKey,
   useListAnnouncements,
   useUpdateAnnouncement,
+  setAuthTokenGetter,
 } from '@workspace/api-client-react';
 import type { ConfessionCategory, ReportInputReason } from '@workspace/api-client-react';
 import { ArrowDown, ArrowLeft, ArrowRight, Check, ChevronDown, Feather, Flag, Heart, Menu, MessageCircle, Moon, PenLine, Send, Share2, ShieldCheck, Sparkles, Sun, X } from 'lucide-react';
@@ -1127,6 +1128,22 @@ function GlobalAnnouncementBanner() {
   );
 }
 
+function AuthTokenSetter() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    setAuthTokenGetter(async () => {
+      try {
+        return await getToken();
+      } catch {
+        return null;
+      }
+    });
+  }, [getToken]);
+
+  return null;
+}
+
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
   if (!clerkPubKey) throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
@@ -1144,6 +1161,7 @@ function ClerkProviderWithRoutes() {
     routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
   >
     <QueryClientProvider client={queryClient}>
+      <AuthTokenSetter />
       <ClerkQueryClientCacheInvalidator />
       <PageErrorBoundary>
         <GlobalAnnouncementBanner />
