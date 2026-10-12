@@ -204,18 +204,18 @@ router.get("/confessions", async (req, res): Promise<void> => {
 // 将第一参数改回 '/confessions'
 router.post('/confessions', async (req, res): Promise<void> => {
   try {
-        const { content, category, authorId } = req.body;
+    const userId = getAuth(req).userId;
+    if (!userId) {
+      res.status(401).json({ error: "Sign-in required" });
+      return;
+    }
+    const { content, category } = req.body;
 
     // ADMIN 分類：只有管理員能發（在後端驗證，不信任前端）
     const isAdminCategory =
       typeof category === "string" && category.trim().toLowerCase() === "admin";
     if (isAdminCategory) {
-      const adminUserId = getAuth(req).userId;
-      if (!adminUserId) {
-        res.status(401).json({ error: "Sign-in required" });
-        return;
-      }
-      const check = await checkModerator(adminUserId);
+      const check = await checkModerator(userId);
       if (check !== "allowed") {
         res.status(check === "denied" ? 403 : 503).json({
           error: "Only admins can post in the ADMIN category",
@@ -228,19 +228,15 @@ router.post('/confessions', async (req, res): Promise<void> => {
     const [newConfession] = await db.insert(confessionsTable).values({
       content,
       category: isAdminCategory ? "admin" : category || "all",
-      authorId: authorId || "anonymous",
+      authorId: userId,
       igStatus: "pending",
     }).returning();
 
     // 更新用戶活動統計（如果表存在）
-    const adminUserId = getAuth(req).userId;
-    if (adminUserId) {
-      try {
-        await updateUserActivity(adminUserId, "confession");
-      } catch (error) {
-        // 如果 gamification 表還不存在，忽略錯誤
-        console.log("Gamification tables not yet created, skipping activity tracking");
-      }
+    try {
+      await updateUserActivity(userId, "confession");
+    } catch (error) {
+      console.error("Failed to record confession activity:", error);
     }
 
     // 2. 立即回應 201 給前端（極速體驗）

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/react';
-import { Award, Lock } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/react";
+import { Award, Lock } from "lucide-react";
 
 interface Badge {
   id: number;
@@ -17,6 +17,17 @@ export function BadgesDisplay() {
   const { isSignedIn, getToken } = useAuth();
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      setLoading(true);
+      setReloadKey((key) => key + 1);
+    };
+    window.addEventListener("gamification:updated", refresh);
+    return () => window.removeEventListener("gamification:updated", refresh);
+  }, []);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -24,27 +35,34 @@ export function BadgesDisplay() {
       return;
     }
 
+    let cancelled = false;
     const fetchBadges = async () => {
       try {
         const token = await getToken();
-        const res = await fetch('/api/gamification/badges/all', {
+        const res = await fetch("/api/gamification/badges/all", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-        if (res.ok) {
-          const data = await res.json();
+        if (!res.ok) throw new Error(`Badges request failed (${res.status})`);
+        const data = await res.json();
+        if (!cancelled) {
           setBadges(data);
+          setError(false);
         }
       } catch (error) {
-        console.error('Failed to fetch badges:', error);
+        console.error("Failed to fetch badges:", error);
+        if (!cancelled) setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchBadges();
-  }, [isSignedIn, getToken]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, getToken, reloadKey]);
 
   if (!isSignedIn) {
     return (
@@ -56,7 +74,28 @@ export function BadgesDisplay() {
   }
 
   if (loading) {
-    return <div className="bg-gray-50 rounded-lg p-6 text-center">Loading badges...</div>;
+    return (
+      <div className="bg-gray-50 rounded-lg p-6 text-center">
+        Loading badges...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-gray-50 rounded-lg p-6 text-center">
+        <p className="text-gray-600">Badges could not be loaded.</p>
+        <button
+          className="mt-2 text-sm text-blue-600 underline"
+          onClick={() => {
+            setLoading(true);
+            setReloadKey((key) => key + 1);
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   const earnedBadges = badges.filter((b) => b.earned);
@@ -77,8 +116,12 @@ export function BadgesDisplay() {
                 className="bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-4 text-center"
               >
                 <div className="text-3xl mb-2">{badge.icon}</div>
-                <h4 className="font-semibold text-gray-800 text-sm">{badge.name}</h4>
-                <p className="text-xs text-gray-600 mt-1">{badge.description}</p>
+                <h4 className="font-semibold text-gray-800 text-sm">
+                  {badge.name}
+                </h4>
+                <p className="text-xs text-gray-600 mt-1">
+                  {badge.description}
+                </p>
                 {badge.earnedAt && (
                   <p className="text-xs text-gray-500 mt-2">
                     Earned {new Date(badge.earnedAt).toLocaleDateString()}
@@ -103,13 +146,21 @@ export function BadgesDisplay() {
                 className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center opacity-60"
               >
                 <div className="text-3xl mb-2 grayscale">{badge.icon}</div>
-                <h4 className="font-semibold text-gray-800 text-sm">{badge.name}</h4>
-                <p className="text-xs text-gray-600 mt-1">{badge.description}</p>
+                <h4 className="font-semibold text-gray-800 text-sm">
+                  {badge.name}
+                </h4>
+                <p className="text-xs text-gray-600 mt-1">
+                  {badge.description}
+                </p>
                 <p className="text-xs text-gray-500 mt-2">
-                  {badge.requirementType === 'confessions' && `Post ${badge.requirementValue} confessions`}
-                  {badge.requirementType === 'comments' && `Leave ${badge.requirementValue} comments`}
-                  {badge.requirementType === 'likes' && `Receive ${badge.requirementValue} likes`}
-                  {badge.requirementType === 'streak' && `${badge.requirementValue}-day streak`}
+                  {badge.requirementType === "confessions" &&
+                    `Post ${badge.requirementValue} confessions`}
+                  {badge.requirementType === "comments" &&
+                    `Leave ${badge.requirementValue} comments`}
+                  {badge.requirementType === "likes" &&
+                    `Receive ${badge.requirementValue} likes`}
+                  {badge.requirementType === "streak" &&
+                    `${badge.requirementValue}-day streak`}
                 </p>
               </div>
             ))}

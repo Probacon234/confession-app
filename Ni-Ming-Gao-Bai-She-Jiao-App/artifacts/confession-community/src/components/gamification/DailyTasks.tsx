@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/react';
-import { CheckCircle, Circle, Star, Clock } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/react";
+import { CheckCircle, Circle, Star, Clock } from "lucide-react";
 
 interface DailyTask {
   id: number;
@@ -19,6 +18,8 @@ export function DailyTasks() {
   const { isSignedIn, getToken } = useAuth();
   const [tasks, setTasks] = useState<DailyTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -26,59 +27,36 @@ export function DailyTasks() {
       return;
     }
 
+    let cancelled = false;
     const fetchTasks = async () => {
       try {
         const token = await getToken();
-        const res = await fetch('/api/gamification/daily-tasks', {
+        const res = await fetch("/api/gamification/daily-tasks", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-        if (res.ok) {
-          const data = await res.json();
+        if (!res.ok)
+          throw new Error(`Daily tasks request failed (${res.status})`);
+        const data = await res.json();
+        if (!cancelled) {
           setTasks(data);
+          setError(false);
+          window.dispatchEvent(new Event("gamification:updated"));
         }
       } catch (error) {
-        console.error('Failed to fetch daily tasks:', error);
+        console.error("Failed to fetch daily tasks:", error);
+        if (!cancelled) setError(true);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchTasks();
-  }, [isSignedIn, getToken]);
-
-  const updateProgress = async (taskId: number, increment: number) => {
-    try {
-      const token = await getToken();
-      const res = await fetch(`/api/gamification/daily-tasks/${taskId}/progress`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ increment }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTasks(
-          tasks.map((task) =>
-            task.id === taskId
-              ? { ...task, progress: data.progress, completed: data.completed }
-              : task
-          )
-        );
-
-        if (data.completed) {
-          toast.success(`Task completed! +${tasks.find((t) => t.id === taskId)?.xpReward} XP`);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to update progress:', error);
-      toast.error('Failed to update progress');
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, getToken, reloadKey]);
 
   if (!isSignedIn) {
     return (
@@ -90,12 +68,36 @@ export function DailyTasks() {
   }
 
   if (loading) {
-    return <div className="bg-gray-50 rounded-lg p-6 text-center">Loading tasks...</div>;
+    return (
+      <div className="bg-gray-50 rounded-lg p-6 text-center">
+        Loading tasks...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-gray-50 rounded-lg p-6 text-center">
+        <p className="text-gray-600">Daily tasks could not be loaded.</p>
+        <button
+          className="mt-2 text-sm text-blue-600 underline"
+          onClick={() => {
+            setLoading(true);
+            setReloadKey((key) => key + 1);
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    );
   }
 
   const completedCount = tasks.filter((t) => t.completed).length;
   const totalCount = tasks.length;
-  const totalXP = tasks.reduce((sum, task) => sum + (task.completed ? task.xpReward : 0), 0);
+  const totalXP = tasks.reduce(
+    (sum, task) => sum + (task.completed ? task.xpReward : 0),
+    0,
+  );
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-teal-50 border border-green-200 rounded-lg p-6">
@@ -114,7 +116,9 @@ export function DailyTasks() {
           <div
             key={task.id}
             className={`bg-white rounded-lg p-4 border ${
-              task.completed ? 'border-green-300 bg-green-50' : 'border-gray-200'
+              task.completed
+                ? "border-green-300 bg-green-50"
+                : "border-gray-200"
             }`}
           >
             <div className="flex items-start justify-between">
@@ -141,7 +145,7 @@ export function DailyTasks() {
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all duration-300 ${
-                        task.completed ? 'bg-green-500' : 'bg-blue-500'
+                        task.completed ? "bg-green-500" : "bg-blue-500"
                       }`}
                       style={{
                         width: `${Math.min((task.progress / task.targetCount) * 100, 100)}%`,

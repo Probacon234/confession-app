@@ -1,4 +1,7 @@
 import {
+  confessionCommentsTable,
+  confessionLikesTable,
+  confessionsTable,
   userStatsTable,
   badgesTable,
   userBadgesTable,
@@ -7,8 +10,9 @@ import {
   db,
 } from "@workspace/db";
 import { getAuth } from "@clerk/express";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { createNotification } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -41,6 +45,42 @@ router.get("/stats", async (req, res): Promise<void> => {
         .returning();
       stats = newStats;
     }
+
+    const [confessions, comments, likesGiven, likesReceived] =
+      await Promise.all([
+        db
+          .select({ value: count() })
+          .from(confessionsTable)
+          .where(eq(confessionsTable.authorId, userId)),
+        db
+          .select({ value: count() })
+          .from(confessionCommentsTable)
+          .where(eq(confessionCommentsTable.authorId, userId)),
+        db
+          .select({ value: count() })
+          .from(confessionLikesTable)
+          .where(eq(confessionLikesTable.userId, userId)),
+        db
+          .select({ value: count() })
+          .from(confessionLikesTable)
+          .innerJoin(
+            confessionsTable,
+            eq(confessionLikesTable.confessionId, confessionsTable.id),
+          )
+          .where(eq(confessionsTable.authorId, userId)),
+      ]);
+    const [updatedStats] = await db
+      .update(userStatsTable)
+      .set({
+        totalConfessions: confessions[0].value,
+        totalComments: comments[0].value,
+        totalLikesGiven: likesGiven[0].value,
+        totalLikesReceived: likesReceived[0].value,
+      })
+      .where(eq(userStatsTable.userId, userId))
+      .returning();
+    stats = updatedStats;
+    await checkAndAwardBadges(userId);
 
     res.json(stats);
   } catch (error: any) {
@@ -113,6 +153,7 @@ router.get("/daily-tasks", async (req, res): Promise<void> => {
 
   try {
     const today = new Date().toISOString().split("T")[0];
+    await advanceDailyTasks(userId, "visit");
 
     const tasks = await db
       .select({
@@ -139,14 +180,17 @@ router.get("/daily-tasks", async (req, res): Promise<void> => {
 
     // 初始化未開始的任務
     for (const task of tasks) {
-      if (!task.progress) {
-        await db.insert(userDailyTasksTable).values({
-          userId,
-          taskId: task.id,
-          progress: 0,
-          completed: false,
-          date: today,
-        });
+      if (task.progress === null) {
+        await db
+          .insert(userDailyTasksTable)
+          .values({
+            userId,
+            taskId: task.id,
+            progress: 0,
+            completed: false,
+            date: today,
+          })
+          .onConflictDoNothing();
         task.progress = 0;
         task.completed = false;
       }
@@ -159,116 +203,76 @@ router.get("/daily-tasks", async (req, res): Promise<void> => {
   }
 });
 
-// 更新任務進度
-router.post("/daily-tasks/:taskId/progress", async (req, res): Promise<void> => {
-  const userId = requireUserId(req, res);
-  if (!userId) return;
+async function advanceDailyTasks(
+  userId: string,
+  taskType: "post_confession" | "comment" | "like" | "visit",
+) {
+  const today = new Date().toISOString().split("T")[0];
+  const tasks = await db
+    .select({
+      id: dailyTasksTable.id,
+      targetCount: dailyTasksTable.targetCount,
+      xpReward: dailyTasksTable.xpReward,
+    })
+    .from(dailyTasksTable)
+    .where(
+      and(
+        eq(dailyTasksTable.isActive, true),
+        eq(dailyTasksTable.taskType, taskType),
+      ),
+    );
 
-  const taskId = parseInt(req.params.taskId);
-  if (isNaN(taskId)) {
-    res.status(400).json({ error: "Invalid task ID" });
-    return;
-  }
-
-  const { increment } = req.body;
-  const incrementValue = typeof increment === "number" ? increment : 1;
-
-  try {
-    const today = new Date().toISOString().split("T")[0];
+  for (const task of tasks) {
+    await db
+      .insert(userDailyTasksTable)
+      .values({
+        userId,
+        taskId: task.id,
+        progress: 0,
+        completed: false,
+        date: today,
+      })
+      .onConflictDoNothing();
 
     const [userTask] = await db
       .select({
         id: userDailyTasksTable.id,
         progress: userDailyTasksTable.progress,
         completed: userDailyTasksTable.completed,
-        completedAt: userDailyTasksTable.completedAt,
-        targetCount: dailyTasksTable.targetCount,
-        xpReward: dailyTasksTable.xpReward,
       })
       .from(userDailyTasksTable)
-      .leftJoin(dailyTasksTable, eq(userDailyTasksTable.taskId, dailyTasksTable.id))
       .where(
         and(
           eq(userDailyTasksTable.userId, userId),
-          eq(userDailyTasksTable.taskId, taskId),
+          eq(userDailyTasksTable.taskId, task.id),
           eq(userDailyTasksTable.date, today),
         ),
       )
       .limit(1);
 
-    if (!userTask) {
-      res.status(404).json({ error: "Task not found" });
-      return;
-    }
+    if (!userTask || userTask.completed) continue;
 
-    if (!userTask.targetCount || !userTask.xpReward) {
-      res.status(500).json({ error: "Task configuration error" });
-      return;
-    }
-
-    const newProgress = Math.min(userTask.progress + incrementValue, userTask.targetCount);
-    const completed = newProgress >= userTask.targetCount && !userTask.completed;
-
-    await db
+    const progress = Math.min(userTask.progress + 1, task.targetCount);
+    const completed = progress >= task.targetCount;
+    const [updatedTask] = await db
       .update(userDailyTasksTable)
       .set({
-        progress: newProgress,
+        progress,
         completed,
-        completedAt: completed ? new Date() : userTask.completedAt,
+        completedAt: completed ? new Date() : null,
       })
-      .where(eq(userDailyTasksTable.id, userTask.id));
+      .where(
+        and(
+          eq(userDailyTasksTable.id, userTask.id),
+          eq(userDailyTasksTable.completed, false),
+        ),
+      )
+      .returning({ completed: userDailyTasksTable.completed });
 
-    // 如果任務完成，獎勵 XP
-    if (completed && !userTask.completed) {
-      await addXP(userId, userTask.xpReward);
+    if (updatedTask?.completed) {
+      await addXP(userId, task.xpReward);
     }
-
-    res.json({ progress: newProgress, completed });
-  } catch (error: any) {
-    console.error("Failed to update task progress:", error);
-    res.status(500).json({ error: "Failed to update progress" });
   }
-});
-
-// 輔助函數：添加 XP 並檢查升級
-async function addXP(userId: string, xpAmount: number) {
-  const [stats] = await db
-    .select()
-    .from(userStatsTable)
-    .where(eq(userStatsTable.userId, userId))
-    .limit(1);
-
-  if (!stats) return;
-
-  const newXP = stats.xp + xpAmount;
-  const newLevel = calculateLevel(newXP);
-
-  await db
-    .update(userStatsTable)
-    .set({ xp: newXP, level: newLevel })
-    .where(eq(userStatsTable.userId, userId));
-
-  // 檢查是否升級，如果是則可以發送通知
-  if (newLevel > stats.level) {
-    // TODO: 發送升級通知
-    console.log(`User ${userId} leveled up to ${newLevel}!`);
-  }
-}
-
-// 輔助函數：根據 XP 計算等級
-function calculateLevel(xp: number): number {
-  // 簡單的等級公式：每個等級需要 level * 100 XP
-  // Level 1: 0-99 XP
-  // Level 2: 100-299 XP
-  // Level 3: 300-599 XP
-  // ...
-  let level = 1;
-  let xpNeeded = 0;
-  while (xp >= xpNeeded) {
-    level++;
-    xpNeeded += level * 100;
-  }
-  return level - 1;
 }
 
 // 輔助函數：更新用戶活動統計
@@ -276,60 +280,104 @@ export async function updateUserActivity(
   userId: string,
   type: "confession" | "comment" | "like_given" | "like_received",
 ) {
+  await db.insert(userStatsTable).values({ userId }).onConflictDoNothing();
   const [stats] = await db
     .select()
     .from(userStatsTable)
     .where(eq(userStatsTable.userId, userId))
     .limit(1);
 
-  if (!stats) {
-    await db.insert(userStatsTable).values({ userId });
-    return;
-  }
+  if (!stats) throw new Error(`Unable to initialize stats for user ${userId}`);
 
-  const updates: any = {
-    lastActiveAt: new Date(),
-  };
-
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
   const lastActivityDate = stats.lastActivityDate
     ? new Date(stats.lastActivityDate).toISOString().split("T")[0]
     : null;
-
-  // 計算連續天數
-  if (lastActivityDate === today) {
-    // 今天已經活動過，不變
-  } else if (lastActivityDate === getYesterday()) {
-    // 昨天活動過，連續天數 +1
-    updates.streakDays = stats.streakDays + 1;
-  } else {
-    // 連續中斷，重置為 1
-    updates.streakDays = 1;
-  }
-  updates.lastActivityDate = today;
-
-  switch (type) {
-    case "confession":
-      updates.totalConfessions = stats.totalConfessions + 1;
-      break;
-    case "comment":
-      updates.totalComments = stats.totalComments + 1;
-      break;
-    case "like_given":
-      updates.totalLikesGiven = stats.totalLikesGiven + 1;
-      break;
-    case "like_received":
-      updates.totalLikesReceived = stats.totalLikesReceived + 1;
-      break;
-  }
+  const streakDays =
+    lastActivityDate === today
+      ? stats.streakDays
+      : lastActivityDate === getYesterday()
+        ? stats.streakDays + 1
+        : 1;
+  const counterUpdate =
+    type === "confession"
+      ? { totalConfessions: sql`${userStatsTable.totalConfessions} + 1` }
+      : type === "comment"
+        ? { totalComments: sql`${userStatsTable.totalComments} + 1` }
+        : type === "like_given"
+          ? { totalLikesGiven: sql`${userStatsTable.totalLikesGiven} + 1` }
+          : {
+              totalLikesReceived: sql`${userStatsTable.totalLikesReceived} + 1`,
+            };
 
   await db
     .update(userStatsTable)
-    .set(updates)
+    .set({
+      lastActiveAt: new Date(),
+      lastActivityDate: new Date(`${today}T00:00:00.000Z`),
+      streakDays,
+      ...counterUpdate,
+    })
     .where(eq(userStatsTable.userId, userId));
 
-  // 檢查是否獲得新徽章
+  const xpByActivity = {
+    confession: 10,
+    comment: 5,
+    like_given: 2,
+    like_received: 0,
+  } satisfies Record<typeof type, number>;
+  await addXP(userId, xpByActivity[type]);
+
+  const taskType =
+    type === "confession"
+      ? "post_confession"
+      : type === "comment"
+        ? "comment"
+        : type === "like_given"
+          ? "like"
+          : null;
+  if (taskType) await advanceDailyTasks(userId, taskType);
+
   await checkAndAwardBadges(userId);
+}
+
+async function addXP(userId: string, xpAmount: number) {
+  if (xpAmount <= 0) return;
+
+  await db.insert(userStatsTable).values({ userId }).onConflictDoNothing();
+  const [stats] = await db
+    .update(userStatsTable)
+    .set({ xp: sql`${userStatsTable.xp} + ${xpAmount}` })
+    .where(eq(userStatsTable.userId, userId))
+    .returning({ xp: userStatsTable.xp, level: userStatsTable.level });
+  if (!stats) throw new Error(`Unable to update XP for user ${userId}`);
+
+  const level = calculateLevel(stats.xp);
+  if (level !== stats.level) {
+    const [leveledUp] = await db
+      .update(userStatsTable)
+      .set({ level })
+      .where(
+        and(
+          eq(userStatsTable.userId, userId),
+          eq(userStatsTable.level, stats.level),
+        ),
+      )
+      .returning({ level: userStatsTable.level });
+    if (leveledUp) {
+      await createNotification(
+        userId,
+        "level_up",
+        "Level up!",
+        `You reached level ${level}.`,
+      );
+    }
+  }
+}
+
+function calculateLevel(xp: number): number {
+  return Math.floor(xp / 100) + 1;
 }
 
 // 輔助函數：檢查並頒發徽章
@@ -370,12 +418,19 @@ async function checkAndAwardBadges(userId: string) {
     }
 
     if (qualified) {
-      await db.insert(userBadgesTable).values({
-        userId,
-        badgeId: badge.id,
-      });
-      console.log(`User ${userId} earned badge: ${badge.name}`);
-      // TODO: 發送徽章獲得通知
+      const [awardedBadge] = await db
+        .insert(userBadgesTable)
+        .values({ userId, badgeId: badge.id })
+        .onConflictDoNothing()
+        .returning({ id: userBadgesTable.id });
+      if (awardedBadge) {
+        await createNotification(
+          userId,
+          "badge_earned",
+          `Badge earned: ${badge.name}`,
+          badge.description,
+        );
+      }
     }
   }
 }
