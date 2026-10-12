@@ -16,10 +16,9 @@
     "drizzle-zod": "^0.8.3",
     "drizzle-kit": "^0.31.10",
     "pg": "^8.23.0",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
+    "zod": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.23.1"
-  }
+  },
+  "devDependencies": {}
 }

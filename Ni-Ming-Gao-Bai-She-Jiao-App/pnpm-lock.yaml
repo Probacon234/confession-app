@@ -637,6 +637,12 @@ importers:
 
   lib/db:
     dependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.6
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
@@ -652,13 +658,6 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 25.9.6
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
 
   scripts:
     devDependencies:
