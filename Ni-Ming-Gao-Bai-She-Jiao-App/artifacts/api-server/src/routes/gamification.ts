@@ -177,8 +177,16 @@ router.post("/gamification/daily-tasks/:taskId/progress", async (req, res): Prom
     const today = new Date().toISOString().split("T")[0];
 
     const [userTask] = await db
-      .select()
+      .select({
+        id: userDailyTasksTable.id,
+        progress: userDailyTasksTable.progress,
+        completed: userDailyTasksTable.completed,
+        completedAt: userDailyTasksTable.completedAt,
+        targetCount: dailyTasksTable.targetCount,
+        xpReward: dailyTasksTable.xpReward,
+      })
       .from(userDailyTasksTable)
+      .leftJoin(dailyTasksTable, eq(userDailyTasksTable.taskId, dailyTasksTable.id))
       .where(
         and(
           eq(userDailyTasksTable.userId, userId),
@@ -190,6 +198,11 @@ router.post("/gamification/daily-tasks/:taskId/progress", async (req, res): Prom
 
     if (!userTask) {
       res.status(404).json({ error: "Task not found" });
+      return;
+    }
+
+    if (!userTask.targetCount || !userTask.xpReward) {
+      res.status(500).json({ error: "Task configuration error" });
       return;
     }
 
