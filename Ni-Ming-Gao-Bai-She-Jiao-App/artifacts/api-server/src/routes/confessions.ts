@@ -232,10 +232,15 @@ router.post('/confessions', async (req, res): Promise<void> => {
       igStatus: "pending",
     }).returning();
 
-    // 更新用戶活動統計
+    // 更新用戶活動統計（如果表存在）
     const adminUserId = getAuth(req).userId;
     if (adminUserId) {
-      await updateUserActivity(adminUserId, "confession");
+      try {
+        await updateUserActivity(adminUserId, "confession");
+      } catch (error) {
+        // 如果 gamification 表還不存在，忽略錯誤
+        console.log("Gamification tables not yet created, skipping activity tracking");
+      }
     }
 
     // 2. 立即回應 201 給前端（極速體驗）

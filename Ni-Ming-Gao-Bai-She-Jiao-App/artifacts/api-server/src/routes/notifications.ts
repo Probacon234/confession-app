@@ -1,9 +1,6 @@
-import {
-  notificationsTable,
-  db,
-} from "@workspace/db";
+import { notificationsTable, db } from "@workspace/db";
 import { getAuth } from "@clerk/express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { Router, type IRouter, type Request, type Response } from "express";
 
 const router: IRouter = Router();
@@ -18,7 +15,7 @@ function requireUserId(req: Request, res: Response): string | null {
 }
 
 // 獲取用戶的通知
-router.get("/notifications", async (req, res): Promise<void> => {
+router.get("/", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
@@ -38,13 +35,13 @@ router.get("/notifications", async (req, res): Promise<void> => {
 });
 
 // 獲取未讀通知數量
-router.get("/notifications/unread-count", async (req, res): Promise<void> => {
+router.get("/unread-count", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
   try {
     const [result] = await db
-      .select({ count: notificationsTable.id })
+      .select({ count: count() })
       .from(notificationsTable)
       .where(
         and(
@@ -53,7 +50,7 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
         ),
       );
 
-    res.json({ count: result ? 1 : 0 });
+    res.json({ count: result.count });
   } catch (error: any) {
     console.error("Failed to fetch unread count:", error);
     res.status(500).json({ error: "Failed to fetch unread count" });
@@ -61,7 +58,7 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
 });
 
 // 標記通知為已讀
-router.post("/notifications/:id/read", async (req, res): Promise<void> => {
+router.post("/:id/read", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
@@ -90,7 +87,7 @@ router.post("/notifications/:id/read", async (req, res): Promise<void> => {
 });
 
 // 標記所有通知為已讀
-router.post("/notifications/read-all", async (req, res): Promise<void> => {
+router.post("/read-all", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
