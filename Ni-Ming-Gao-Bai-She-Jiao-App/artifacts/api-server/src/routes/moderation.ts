@@ -376,6 +376,49 @@ router.post("/announcements", async (req, res) => {
 });
 
 // 刪除系統公告 API
+// 更新系統公告 API（加上管理員權限驗證）
+router.patch("/announcements/:id", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const check = await checkModerator(auth.userId);
+    if (check !== "allowed") {
+      return res.status(check === "denied" ? 403 : 503).json({
+        error: check === "denied" ? "Moderator access required" : "Moderator access unavailable",
+      });
+    }
+
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid announcement ID" });
+    }
+
+    const { title, content, isActive } = req.body;
+
+    const [updated] = await db
+      .update(announcementsTable)
+      .set({
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && { content }),
+        ...(isActive !== undefined && { isActive }),
+      })
+      .where(eq(announcementsTable.id, id))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Announcement not found" });
+    }
+
+    return res.json(updated);
+  } catch (error) {
+    console.error("Failed to update announcement:", error);
+    return res.status(500).json({ error: "Failed to update announcement" });
+  }
+});
+
 // 刪除系統公告 API（加上管理員信箱驗證）
 router.delete("/announcements/:id", async (req, res) => {
   try {

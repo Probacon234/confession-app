@@ -18,6 +18,8 @@ tags:
     description: Community activity summaries
   - name: moderation
     description: Private report review tools
+  - name: announcements
+    description: System announcements
 paths:
   /healthz:
     get:
@@ -282,6 +284,48 @@ paths:
           description: Report not found
         "503":
           description: Moderator access is not configured or unavailable
+  /announcements:
+    get:
+      operationId: listAnnouncements
+      tags: [announcements]
+      summary: Get active system announcements
+      responses:
+        "200":
+          description: List of announcements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnnouncementList"
+  /announcements/{id}:
+    patch:
+      operationId: updateAnnouncement
+      tags: [announcements]
+      summary: Update an announcement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementUpdate"
+      responses:
+        "200":
+          description: Updated announcement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Announcement"
+        "401":
+          description: Sign-in required
+        "403":
+          description: Moderator access required
+        "404":
+          description: Announcement not found
 components:
   schemas:
     HealthStatus:
@@ -440,4 +484,35 @@ components:
         totalLikes:
           type: integer
       required: [totalConfessions, confessionsToday, totalLikes]
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        authorId:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, content, authorId, isActive, createdAt]
+    AnnouncementList:
+      type: array
+      items:
+        $ref: "#/components/schemas/Announcement"
+    AnnouncementUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        isActive:
+          type: boolean
+      required: []
 

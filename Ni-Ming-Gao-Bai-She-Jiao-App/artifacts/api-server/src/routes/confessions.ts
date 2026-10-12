@@ -1,11 +1,11 @@
-import { 
-  confessionsTable, 
-  bannedUsersTable, 
-  db, 
-  confessionCommentsTable, 
-  confessionLikesTable, 
+import {
+  confessionsTable,
+  bannedUsersTable,
+  db,
+  confessionCommentsTable,
+  confessionLikesTable,
   announcementsTable,
-  confessionReportsTable 
+  confessionReportsTable
 } from "@workspace/db";
 import { checkModerator } from "./moderation";
 import { getAuth } from "@clerk/express";
@@ -498,6 +498,32 @@ router.get("/announcements", async (req, res): Promise<void> => {
   }
 });
 
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+// ==========================================
+// 取得用戶自己的告白列表
+// ==========================================
+router.get("/my-confessions", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  try {
+    const myConfessions = await db
+      .select({
+        id: confessionsTable.id,
+        content: confessionsTable.content,
+        category: confessionsTable.category,
+        createdAt: confessionsTable.createdAt,
+        igStatus: confessionsTable.igStatus,
+        igPostedAt: confessionsTable.igPostedAt,
+      })
+      .from(confessionsTable)
+      .where(eq(confessionsTable.authorId, userId))
+      .orderBy(desc(confessionsTable.createdAt));
+
+    res.json(myConfessions);
+  } catch (error: any) {
+    console.error("Failed to fetch user confessions:", error);
+    res.status(500).json({ error: "Failed to fetch confessions" });
+  }
+});
 
 export default router;

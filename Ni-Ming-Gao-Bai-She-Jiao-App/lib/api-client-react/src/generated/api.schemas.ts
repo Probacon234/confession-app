@@ -167,6 +167,23 @@ export interface CommunitySummary {
   totalLikes: number;
 }
 
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  authorId: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export type AnnouncementList = Announcement[];
+
+export interface AnnouncementUpdate {
+  title?: string;
+  content?: string;
+  isActive?: boolean;
+}
+
 export type ListConfessionsParams = {
 sort?: ListConfessionsSort;
 category?: ListConfessionsCategory;

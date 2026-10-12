@@ -7,6 +7,9 @@
  */
 
 export * from './actionResult';
+export * from './announcement';
+export * from './announcementList';
+export * from './announcementUpdate';
 export * from './comment';
 export * from './commentInput';
 export * from './commentList';

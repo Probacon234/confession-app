@@ -20,13 +20,17 @@ import {
   getGetConfessionQueryKey,
   getListConfessionCommentsQueryKey,
   getGetCommunitySummaryQueryKey,
+  useListAnnouncements,
+  useUpdateAnnouncement,
 } from '@workspace/api-client-react';
 import type { ConfessionCategory, ReportInputReason } from '@workspace/api-client-react';
-import { ArrowDown, ArrowLeft, ArrowRight, Check, ChevronDown, Feather, Flag, Heart, Menu, MessageCircle, PenLine, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, Check, ChevronDown, Feather, Flag, Heart, Menu, MessageCircle, Moon, PenLine, Send, Share2, ShieldCheck, Sparkles, Sun, X } from 'lucide-react';
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from 'wouter';
+import { useTheme } from 'next-themes';
 import { ErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
 import NotFound from '@/pages/not-found';
 
 function ReportedItem({ report }: { report: any }) {
@@ -43,7 +47,7 @@ function ReportedItem({ report }: { report: any }) {
       });
       queryClient.invalidateQueries();
     } catch (err) {
-      alert("Action failed: " + (err as Error).message);
+      toast.error("Action failed: " + (err as Error).message);
     }
   };
 
@@ -63,13 +67,13 @@ function ReportedItem({ report }: { report: any }) {
     const data = await response.json();
     
     if (response.ok) {
-      alert('成功發布到 Instagram！');
+      toast.success('成功發布到 Instagram！');
     } else {
-      alert(`發布失敗: ${data.error || '未知錯誤'}`);
+      toast.error(`發布失敗: ${data.error || '未知錯誤'}`);
     }
   } catch (error) {
     console.error('發布到 IG 時發生錯誤:', error);
-    alert('網路連線錯誤，發布失敗');
+    toast.error('網路連線錯誤，發布失敗');
   }
   };
 
@@ -105,14 +109,14 @@ function ReportedItem({ report }: { report: any }) {
       }
 
       if (res.ok) {
-        alert("Post deleted successfully.");
+        toast.success("Post deleted successfully.");
         queryClient.invalidateQueries();
       } else {
         const errorMsg = data?.message || data?.error || `HTTP ${res.status} Error`;
-        alert("Failed to delete post: " + errorMsg);
+        toast.error("Failed to delete post: " + errorMsg);
       }
     } catch (err) {
-      alert("Delete failed: " + (err as Error).message);
+      toast.error("Delete failed: " + (err as Error).message);
     }
   };
 
@@ -135,15 +139,15 @@ function ReportedItem({ report }: { report: any }) {
       });
 
       if (res.ok) {
-        alert("User banned successfully.");
+        toast.success("User banned successfully.");
         // 如果有用到 react-query，这里刷新列表
-        // queryClient.invalidateQueries(); 
+        // queryClient.invalidateQueries();
       } else {
         const data = await res.json().catch(() => null);
-        alert(`Failed to ban user: ${data?.message || 'Unknown error'} (HTTP ${res.status})`);
+        toast.error(`Failed to ban user: ${data?.message || 'Unknown error'} (HTTP ${res.status})`);
       }
     } catch (err) {
-      alert("Ban failed: " + (err as Error).message);
+      toast.error("Ban failed: " + (err as Error).message);
     }
   };
 
@@ -233,10 +237,16 @@ function ModerationPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
 
   // 2. 接著才是資料請求與 loading 判斷
   const { data: access, isLoading: accessLoading } = useGetModerationAccess();
   const { data: reportsData, isLoading: reportsLoading } = useListModerationReports({});
+  const { data: announcements } = useListAnnouncements();
+  const updateAnnouncementMutation = useUpdateAnnouncement();
+  const queryClient = useQueryClient();
 
   if (accessLoading || reportsLoading) {
     return <div className="p-8 text-center">Loading...</div>;
@@ -260,10 +270,10 @@ function ModerationPage() {
 
   const handlePostAnnouncement = async () => {
     if (!title.trim() || !content.trim()) {
-      alert("Please fill in the title and content of the announcement!");
+      toast.error("Please fill in the title and content of the announcement!");
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       // 呼叫我們剛才寫好的後端 API
@@ -274,15 +284,56 @@ function ModerationPage() {
       });
 
       if (!res.ok) throw new Error("Failed to publish announcement");
-      
-      alert("🎉 Announcement published successfully!");
+
+      toast.success("🎉 Announcement published successfully!");
       setTitle("");   // 清空輸入框
       setContent(""); // 清空輸入框
+      queryClient.invalidateQueries();
     } catch (error) {
       console.error(error);
-      alert("Failed to publish announcement. Please try again later.");
+      toast.error("Failed to publish announcement. Please try again later.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditAnnouncement = (announcement: any) => {
+    setEditingId(announcement.id);
+    setEditTitle(announcement.title);
+    setEditContent(announcement.content);
+  };
+
+  const handleUpdateAnnouncement = async (id: number) => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      toast.error("Title and content cannot be empty!");
+      return;
+    }
+
+    try {
+      await updateAnnouncementMutation.mutateAsync({
+        id,
+        data: { title: editTitle, content: editContent },
+      });
+      toast.success("Announcement updated successfully!");
+      setEditingId(null);
+      setEditTitle("");
+      setEditContent("");
+      queryClient.invalidateQueries();
+    } catch (error) {
+      toast.error("Failed to update announcement: " + (error as Error).message);
+    }
+  };
+
+  const handleToggleActive = async (id: number, isActive: boolean) => {
+    try {
+      await updateAnnouncementMutation.mutateAsync({
+        id,
+        data: { isActive: !isActive },
+      });
+      toast.success(isActive ? "Announcement hidden" : "Announcement published");
+      queryClient.invalidateQueries();
+    } catch (error) {
+      toast.error("Failed to toggle announcement: " + (error as Error).message);
     }
   };
 
@@ -317,7 +368,105 @@ function ModerationPage() {
             </button>
           </div>
         </div>
-        
+
+        {/* 公告列表區塊 */}
+        <div className="mb-8 p-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="text-lg font-bold mb-4 text-gray-800">📋 Announcement Management</h2>
+          {!announcements || announcements.length === 0 ? (
+            <p className="text-gray-500">No announcements yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {announcements.map((announcement: any) => (
+                <div key={announcement.id} className="border border-gray-200 rounded p-4">
+                  {editingId === announcement.id ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                      />
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded min-h-[80px] focus:outline-none focus:border-blue-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdateAnnouncement(announcement.id)}
+                          disabled={updateAnnouncementMutation.isPending}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                        >
+                          {updateAnnouncementMutation.isPending ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{announcement.title}</h3>
+                          <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">{announcement.content}</p>
+                          <p className="text-gray-500 text-xs mt-2">
+                            {new Date(announcement.createdAt).toLocaleString()}
+                            {announcement.isActive ? (
+                              <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs">Active</span>
+                            ) : (
+                              <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Hidden</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={() => handleEditAnnouncement(announcement)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(announcement.id, announcement.isActive)}
+                          className="text-purple-600 hover:text-purple-800 text-sm font-medium"
+                        >
+                          {announcement.isActive ? "Hide" : "Publish"}
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm("Are you sure you want to delete this announcement?")) return;
+                            try {
+                              const res = await fetch(`/api/moderation/announcements/${announcement.id}`, {
+                                method: "DELETE",
+                                headers: { "Content-Type": "application/json" },
+                              });
+                              if (res.ok) {
+                                toast.success("Announcement deleted successfully.");
+                                queryClient.invalidateQueries();
+                              } else {
+                                toast.error("Deletion failed. Please check if you have administrator privileges.");
+                              }
+                            } catch (error) {
+                              toast.error("Failed to delete announcement: " + (error as Error).message);
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* 下方原本的檢舉列表加上一個小標題來區分 */}
         <h2 className="text-lg font-bold mb-4 text-gray-800">🚨 Report Management List</h2>
       {!Array.isArray(reports) || reports.length === 0 ? (
@@ -431,6 +580,7 @@ function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
+  const { theme, setTheme } = useTheme();
   return <header className="site-header">
     <div className="header-inner">
       <Brand />
@@ -440,6 +590,13 @@ function SiteHeader() {
         <Show when="signed-in"><Link href="/user-portal" onClick={() => setMenuOpen(false)}>Your space</Link></Show>
       </nav>
       <div className="header-actions">
+        <button
+          className="icon-button"
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          aria-label="Toggle dark mode"
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
         <Show when="signed-out">
           <Link href="/sign-in" className="text-action">Sign in</Link>
           <Link href="/sign-up" className="header-cta">Join the wall <ArrowRight size={15} /></Link>
@@ -473,6 +630,7 @@ const [submitFailed, setSubmitFailed] = useState(false);
   const feed = useListConfessions(params);
   const summary = useGetCommunitySummary();
   const health = useHealthCheck();
+  const { data: announcements } = useListAnnouncements();
   const cache = useQueryClient();
   const create = useCreateConfession({ mutation: { onSuccess: async () => {
     await Promise.all([cache.invalidateQueries({ queryKey: getListConfessionsQueryKey() }), cache.invalidateQueries({ queryKey: getGetCommunitySummaryQueryKey() })]);
@@ -483,6 +641,17 @@ const [submitFailed, setSubmitFailed] = useState(false);
   } } });
 
   const startCompose = () => setComposeOpen(true);
+
+  const handleShare = async (id: number) => {
+    const shareUrl = `${window.location.origin}/confessions/${id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied to clipboard!");
+    } catch (error) {
+      toast.error("Failed to copy link");
+    }
+  };
+
   return <div className="page-shell grain">
     <SiteHeader />
     <main>
@@ -517,6 +686,25 @@ const [submitFailed, setSubmitFailed] = useState(false);
         <span className="strip-aside">Across Malaysia, one honest moment at a time.</span>
       </section>
 
+      {announcements && announcements.length > 0 && (
+        <section className="max-w-4xl mx-auto px-6 py-4">
+          {announcements.map((announcement) => (
+            <div key={announcement.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-start gap-3">
+                <Sparkles className="text-blue-600 mt-1" size={20} />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-blue-900 mb-1">{announcement.title}</h3>
+                  <p className="text-blue-800 text-sm whitespace-pre-wrap">{announcement.content}</p>
+                  <p className="text-blue-600 text-xs mt-2">
+                    {new Date(announcement.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
       <section className="wall-section" id="the-wall">
         <div className="feed-main">
           <div className="section-heading">
@@ -536,6 +724,7 @@ const [submitFailed, setSubmitFailed] = useState(false);
                   <div className="card-bottom">
                     <button className={`card-action ${item.likedByMe ? 'liked' : ''}`} onClick={() => isSignedIn ? like.mutate({ id: item.id }) : setLocation('/sign-in')} disabled={like.isPending} aria-label={item.likedByMe ? 'Remove care' : 'Send care'} data-testid={`button-like-${item.id}`}><Heart size={17} fill={item.likedByMe ? 'currentColor' : 'none'} /><span>{item.likes}</span><span className="action-label">{item.likedByMe ? 'You held this' : 'I hear you'}</span></button>
                     <Link href={`/confessions/${item.id}`} className="card-action" data-testid={`link-comments-${item.id}`}><MessageCircle size={17} /><span>{item.commentsCount}</span><span className="action-label">gentle words</span></Link>
+                    <button className="card-action" onClick={() => handleShare(item.id)} aria-label="Share this story" data-testid={`button-share-${item.id}`}><Share2 size={17} /><span className="action-label">Share</span></button>
                     <button className="report-trigger" onClick={() => isSignedIn ? setReportId(item.id) : setLocation('/sign-in')} aria-label="Report this story" data-testid={`button-report-${item.id}`}><Flag size={15} /></button>
                   </div>
                 </article>)}
@@ -614,10 +803,106 @@ const [submitFailed, setSubmitFailed] = useState(false);
 }
 
 function UserPortalPage() {
+  const { getToken } = useAuth();
+  const [myConfessions, setMyConfessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const cache = useQueryClient();
+
+  const loadMyConfessions = async () => {
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/my-confessions", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyConfessions(data);
+      }
+    } catch (error) {
+      console.error("Failed to load confessions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMyConfessions();
+  }, []);
+
+  const handleDeleteConfession = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this confession? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/moderation/confessions/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        toast.success("Confession deleted successfully.");
+        setMyConfessions((prev) => prev.filter((c) => c.id !== id));
+        cache.invalidateQueries();
+      } else {
+        toast.error("Failed to delete confession.");
+      }
+    } catch (error) {
+      toast.error("Delete failed: " + (error as Error).message);
+    }
+  };
+
   return <div className="page-shell"><SiteHeader /><main className="portal-main">
     <div className="portal-banner"><span className="eyebrow"><Sparkles size={14} /> YOUR QUIET CORNER</span><h1 className="serif">Welcome back to<br /><em>the wall.</em></h1><p>Nothing here is tied to your name. Your presence simply lets you leave a little care behind.</p><Link className="primary-button" href="/wall"><ArrowLeft size={16} /> Return to the wall</Link></div>
     <div className="portal-prompt"><span className="portal-prompt-icon"><PenLine size={19} /></span><div><span className="eyebrow muted-eyebrow">WHENEVER YOU'RE READY</span><h2 className="serif">What's sitting with you?</h2><p>Put it into words, at your own pace. You can share it without sharing who you are.</p></div><Link href="/wall" className="portal-arrow" aria-label="Go to the wall"><ArrowRight size={19} /></Link></div>
     <div className="portal-note"><ShieldCheck size={18} /><p><b>Your account is only for keeping this space safe.</b> Your name never appears beside a confession, a comment, or a like.</p></div>
+
+    {/* 用戶自己的告白列表 */}
+    <div className="max-w-4xl mx-auto mt-8 p-6">
+      <h2 className="text-xl font-bold mb-4 text-gray-800">📝 My Confessions</h2>
+      {loading ? (
+        <div className="text-center text-gray-500">Loading...</div>
+      ) : myConfessions.length === 0 ? (
+        <div className="text-center text-gray-500 p-8 bg-gray-50 rounded-lg">
+          <p>You haven't shared any confessions yet.</p>
+          <Link href="/wall" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+            Share your first confession →
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {myConfessions.map((confession) => (
+            <div key={confession.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`category-tag tag-${categoryColors[confession.category as ConfessionCategory]}`}>
+                      {englishCategories[confession.category as ConfessionCategory]}
+                    </span>
+                    <span className="text-xs text-gray-500">{timeAgo(confession.createdAt)}</span>
+                    {confession.igStatus === 'published' && (
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Posted to IG</span>
+                    )}
+                  </div>
+                  <p className="text-gray-800 whitespace-pre-wrap">{confession.content}</p>
+                </div>
+                <button
+                  onClick={() => handleDeleteConfession(confession.id)}
+                  className="ml-4 text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   </main><Footer /></div>;
 }
 
@@ -643,6 +928,17 @@ function ConfessionPage() {
   const like = useToggleConfessionLike({ mutation: { onSuccess: async () => {
     await Promise.all([cache.invalidateQueries({ queryKey: getGetConfessionQueryKey(id) }), cache.invalidateQueries({ queryKey: getListConfessionsQueryKey() }), cache.invalidateQueries({ queryKey: getGetCommunitySummaryQueryKey() })]);
   } } });
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/confessions/${id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Link copied to clipboard!");
+    } catch (error) {
+      toast.error("Failed to copy link");
+    }
+  };
+
   const submitComment = (event: FormEvent) => { event.preventDefault(); if (!isSignedIn) { setLocation('/sign-in'); return; } if (content.trim()) createComment.mutate({ id, data: { content: content.trim() } }); };
   return <div className="page-shell"><SiteHeader /><main className="detail-main">
     <Link href="/wall" className="back-link"><ArrowLeft size={16} /> Back to the wall</Link>
@@ -654,6 +950,7 @@ function ConfessionPage() {
           <div className="detail-actions">
             <button className={`card-action ${confession.data.likedByMe ? 'liked' : ''}`} onClick={() => isSignedIn ? like.mutate({ id }) : setLocation('/sign-in')} disabled={like.isPending} data-testid="button-detail-like"><Heart size={18} fill={confession.data.likedByMe ? 'currentColor' : 'none'} /><span>{confession.data.likes}</span><span className="action-label">I hear you</span></button>
             <span className="card-action static"><MessageCircle size={17} /><span>{confession.data.commentsCount}</span><span className="action-label">gentle words</span></span>
+            <button className="card-action" onClick={handleShare} aria-label="Share this story" data-testid="button-detail-share"><Share2 size={17} /><span className="action-label">Share</span></button>
             <button className="report-trigger" onClick={() => isSignedIn ? setReportOpen(true) : setLocation('/sign-in')} aria-label="Report this story" data-testid="button-detail-report"><Flag size={15} /> Report</button>
           </div>
         </article>
@@ -814,8 +1111,9 @@ function GlobalAnnouncementBanner() {
 
   if (res.ok) {
     setAnnouncements((prev) => prev.filter((a) => a.id !== item.id));
+    toast.success("Announcement deleted successfully.");
   } else {
-    alert("Deletion failed. Please check if you have administrator privileges.");
+    toast.error("Deletion failed. Please check if you have administrator privileges.");
   }
 }}
               className="ml-4 px-2 py-1 bg-red-800 hover:bg-red-900 text-xs text-white rounded transition"

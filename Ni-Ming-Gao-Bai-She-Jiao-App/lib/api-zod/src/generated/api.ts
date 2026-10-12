@@ -219,3 +219,40 @@ export const UpdateModerationReportResponse = zod.object({
 })
 
 
+/**
+ * @summary Get active system announcements
+ */
+export const ListAnnouncementsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "authorId": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAnnouncementsResponse = zod.array(ListAnnouncementsResponseItem)
+
+
+/**
+ * @summary Update an announcement
+ */
+export const UpdateAnnouncementParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateAnnouncementBody = zod.object({
+  "title": zod.string().optional(),
+  "content": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateAnnouncementResponse = zod.object({
+  "id": zod.number().int(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "authorId": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
