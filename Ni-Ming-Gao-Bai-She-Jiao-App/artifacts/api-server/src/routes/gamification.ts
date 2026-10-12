@@ -22,7 +22,7 @@ function requireUserId(req: Request, res: Response): string | null {
 }
 
 // 獲取用戶統計數據
-router.get("/gamification/stats", async (req, res): Promise<void> => {
+router.get("/stats", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
@@ -50,7 +50,7 @@ router.get("/gamification/stats", async (req, res): Promise<void> => {
 });
 
 // 獲取用戶的徽章
-router.get("/gamification/badges", async (req, res): Promise<void> => {
+router.get("/badges", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
@@ -78,7 +78,7 @@ router.get("/gamification/badges", async (req, res): Promise<void> => {
 });
 
 // 獲取所有可用的徽章（包括未獲得的）
-router.get("/gamification/badges/all", async (req, res): Promise<void> => {
+router.get("/badges/all", async (req, res): Promise<void> => {
   try {
     const userId = getAuth(req).userId;
     const allBadges = await db.select().from(badgesTable);
@@ -107,7 +107,7 @@ router.get("/gamification/badges/all", async (req, res): Promise<void> => {
 });
 
 // 獲取每日任務
-router.get("/gamification/daily-tasks", async (req, res): Promise<void> => {
+router.get("/daily-tasks", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
@@ -160,7 +160,7 @@ router.get("/gamification/daily-tasks", async (req, res): Promise<void> => {
 });
 
 // 更新任務進度
-router.post("/gamification/daily-tasks/:taskId/progress", async (req, res): Promise<void> => {
+router.post("/daily-tasks/:taskId/progress", async (req, res): Promise<void> => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
