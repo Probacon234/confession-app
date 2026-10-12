@@ -1,4 +1,6 @@
 import moderationRouter from "./routes/moderation";
+import gamificationRouter from "./routes/gamification";
+import notificationsRouter from "./routes/notifications";
 import express, {
   type Express,
   type NextFunction,
@@ -60,6 +62,8 @@ app.use(
 app.use("/api/confession-image", confessionImageRouter);
 
 app.use("/api/moderation", moderationRouter);
+app.use("/api/gamification", gamificationRouter);
+app.use("/api/notifications", notificationsRouter);
 
 app.use("/api", router);
 

@@ -140,3 +140,122 @@ export const insertAnnouncementSchema = createInsertSchema(announcementsTable).o
        .notNull()
        .defaultNow(),
    });
+
+// ==========================================
+// 遊戲化功能 - 用戶統計
+// ==========================================
+export const userStatsTable = pgTable(
+  "user_stats",
+  {
+    userId: text("user_id").primaryKey(),
+    level: integer("level").notNull().default(1),
+    xp: integer("xp").notNull().default(0),
+    totalConfessions: integer("total_confessions").notNull().default(0),
+    totalComments: integer("total_comments").notNull().default(0),
+    totalLikesReceived: integer("total_likes_received").notNull().default(0),
+    totalLikesGiven: integer("total_likes_given").notNull().default(0),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    streakDays: integer("streak_days").notNull().default(0),
+    lastActivityDate: timestamp("last_activity_date", { withTimezone: true }),
+  },
+  (table) => [index("user_stats_level_idx").on(table.level)],
+);
+
+// ==========================================
+// 遊戲化功能 - 徽章系統
+// ==========================================
+export const badgesTable = pgTable(
+  "badges",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    icon: text("icon").notNull(),
+    requirementType: text("requirement_type").notNull(), // 'confessions', 'comments', 'likes', 'streak', 'special'
+    requirementValue: integer("requirement_value").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("badges_requirement_type_idx").on(table.requirementType)],
+);
+
+export const userBadgesTable = pgTable(
+  "user_badges",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    badgeId: integer("badge_id")
+      .notNull()
+      .references(() => badgesTable.id, { onDelete: "cascade" }),
+    earnedAt: timestamp("earned_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("user_badges_unique_idx").on(table.userId, table.badgeId),
+    index("user_badges_user_id_idx").on(table.userId),
+  ],
+);
+
+// ==========================================
+// 遊戲化功能 - 每日任務
+// ==========================================
+export const dailyTasksTable = pgTable(
+  "daily_tasks",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    taskType: text("task_type").notNull(), // 'post_confession', 'comment', 'like', 'visit'
+    targetCount: integer("target_count").notNull(),
+    xpReward: integer("xp_reward").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+  },
+  (table) => [index("daily_tasks_active_idx").on(table.isActive)],
+);
+
+export const userDailyTasksTable = pgTable(
+  "user_daily_tasks",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    taskId: integer("task_id")
+      .notNull()
+      .references(() => dailyTasksTable.id, { onDelete: "cascade" }),
+    progress: integer("progress").notNull().default(0),
+    completed: boolean("completed").notNull().default(false),
+    date: text("date").notNull(), // YYYY-MM-DD format
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("user_daily_tasks_unique_idx").on(table.userId, table.taskId, table.date),
+    index("user_daily_tasks_user_date_idx").on(table.userId, table.date),
+  ],
+);
+
+// ==========================================
+// 通知系統
+// ==========================================
+export const notificationsTable = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    type: text("type").notNull(), // 'comment_reply', 'like', 'badge_earned', 'level_up'
+    title: text("title").notNull(),
+    message: text("message").notNull(),
+    relatedId: integer("related_id"), // confessionId, commentId, etc.
+    read: boolean("read").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("notifications_user_id_idx").on(table.userId),
+    index("notifications_read_idx").on(table.read),
+    index("notifications_created_at_idx").on(table.createdAt),
+  ],
+);

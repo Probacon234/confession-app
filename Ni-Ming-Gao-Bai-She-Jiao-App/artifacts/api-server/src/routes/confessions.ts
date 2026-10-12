@@ -31,6 +31,8 @@ import {
   ToggleConfessionLikeParams,
   ToggleConfessionLikeResponse,
 } from "@workspace/api-zod";
+import { updateUserActivity } from "./gamification";
+import { createNotification as createNotificationFn } from "./notifications";
 
 const router: IRouter = Router();
 
@@ -61,6 +63,7 @@ async function findConfession(id: number) {
       id: confessionsTable.id,
       content: confessionsTable.content,
       category: confessionsTable.category,
+      authorId: confessionsTable.authorId,
       createdAt: confessionsTable.createdAt,
     })
     .from(confessionsTable)
@@ -229,7 +232,12 @@ router.post('/confessions', async (req, res): Promise<void> => {
       igStatus: "pending",
     }).returning();
 
-  
+    // 更新用戶活動統計
+    const adminUserId = getAuth(req).userId;
+    if (adminUserId) {
+      await updateUserActivity(adminUserId, "confession");
+    }
+
     // 2. 立即回應 201 給前端（極速體驗）
     res.status(201).json(newConfession);
 
@@ -306,6 +314,28 @@ router.post("/confessions/:id/like", async (req, res): Promise<void> => {
         userId,
       });
       likedByMe = true;
+
+      // 更新用戶活動統計
+      await updateUserActivity(userId, "like_given");
+
+      // 獲取告白作者並更新其統計
+      const [confession] = await db
+        .select({ authorId: confessionsTable.authorId })
+        .from(confessionsTable)
+        .where(eq(confessionsTable.id, confessionId))
+        .limit(1);
+
+      if (confession && confession.authorId !== userId) {
+        await updateUserActivity(confession.authorId, "like_received");
+        // 發送通知給告白作者
+        await createNotificationFn(
+          confession.authorId,
+          "like",
+          "Someone appreciates your words",
+          "Your confession received a gentle nod of understanding.",
+          confessionId,
+        );
+      }
     }
 
     // 🌟 3. 計算該貼文最新的總點讚數
@@ -362,6 +392,18 @@ router.post("/confessions/:id/comments", async (req, res): Promise<void> => {
       content: confessionCommentsTable.content,
       createdAt: confessionCommentsTable.createdAt,
     });
+
+  // 更新用戶活動統計
+  await updateUserActivity(userId, "comment");
+
+  // 發送通知給告白作者
+  await createNotificationFn(
+    confession.authorId,
+    "comment_reply",
+    "Someone left you a gentle word",
+    "Your confession received a caring reply.",
+    confession.id,
+  );
 
   res.status(201).json(CreateConfessionCommentResponse.parse(created));
 });
@@ -523,6 +565,72 @@ router.get("/my-confessions", async (req, res): Promise<void> => {
   } catch (error: any) {
     console.error("Failed to fetch user confessions:", error);
     res.status(500).json({ error: "Failed to fetch confessions" });
+  }
+});
+
+// ==========================================
+// 編輯告白（時間限制：30分鐘內）
+// ==========================================
+router.put("/confessions/:id", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const confessionId = parseInt(req.params.id);
+  if (isNaN(confessionId)) {
+    res.status(400).json({ error: "Invalid confession ID" });
+    return;
+  }
+
+  const { content, category } = req.body;
+
+  if (!content || typeof content !== "string") {
+    res.status(400).json({ error: "Content is required" });
+    return;
+  }
+
+  try {
+    const [confession] = await db
+      .select()
+      .from(confessionsTable)
+      .where(eq(confessionsTable.id, confessionId))
+      .limit(1);
+
+    if (!confession) {
+      res.status(404).json({ error: "Confession not found" });
+      return;
+    }
+
+    // 檢查是否為作者
+    if (confession.authorId !== userId) {
+      res.status(403).json({ error: "You can only edit your own confessions" });
+      return;
+    }
+
+    // 檢查時間限制（30分鐘內）
+    const createdAt = new Date(confession.createdAt);
+    const now = new Date();
+    const timeDiff = now.getTime() - createdAt.getTime();
+    const thirtyMinutes = 30 * 60 * 1000;
+
+    if (timeDiff > thirtyMinutes) {
+      res.status(403).json({ error: "You can only edit confessions within 30 minutes of posting" });
+      return;
+    }
+
+    // 更新告白
+    const [updated] = await db
+      .update(confessionsTable)
+      .set({
+        content: content.trim(),
+        category: category || confession.category,
+      })
+      .where(eq(confessionsTable.id, confessionId))
+      .returning();
+
+    res.json(updated);
+  } catch (error: any) {
+    console.error("Failed to update confession:", error);
+    res.status(500).json({ error: "Failed to update confession" });
   }
 });
 

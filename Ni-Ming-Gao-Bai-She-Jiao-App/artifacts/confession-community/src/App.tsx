@@ -33,6 +33,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import NotFound from '@/pages/not-found';
+import { BadgesDisplay } from '@/components/gamification/BadgesDisplay';
+import { LevelDisplay } from '@/components/gamification/LevelDisplay';
+import { DailyTasks } from '@/components/gamification/DailyTasks';
+import { Notifications } from '@/components/Notifications';
 
 function ReportedItem({ report }: { report: any }) {
   const { data: confession, isLoading } = useGetConfession(report.confessionId);
@@ -598,6 +602,9 @@ function SiteHeader() {
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
+        <Show when="signed-in">
+          <Notifications />
+        </Show>
         <Show when="signed-out">
           <Link href="/sign-in" className="text-action">Sign in</Link>
           <Link href="/sign-up" className="header-cta">Join the wall <ArrowRight size={15} /></Link>
@@ -807,6 +814,10 @@ function UserPortalPage() {
   const { getToken } = useAuth();
   const [myConfessions, setMyConfessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editCategory, setEditCategory] = useState<ConfessionCategory>("life");
+  const [isSaving, setIsSaving] = useState(false);
   const cache = useQueryClient();
 
   const loadMyConfessions = async () => {
@@ -858,10 +869,84 @@ function UserPortalPage() {
     }
   };
 
+  const handleEditConfession = (confession: any) => {
+    setEditingId(confession.id);
+    setEditContent(confession.content);
+    setEditCategory(confession.category);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim()) {
+      toast.error("Content cannot be empty");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/confessions/${editingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: editContent,
+          category: editCategory,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Confession updated successfully.");
+        setMyConfessions((prev) =>
+          prev.map((c) =>
+            c.id === editingId
+              ? { ...c, content: editContent, category: editCategory }
+              : c
+          )
+        );
+        setEditingId(null);
+        setEditContent("");
+        cache.invalidateQueries();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to update confession");
+      }
+    } catch (error) {
+      toast.error("Update failed: " + (error as Error).message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditContent("");
+    setEditCategory("life");
+  };
+
+  const canEdit = (confession: any) => {
+    const createdAt = new Date(confession.createdAt);
+    const now = new Date();
+    const timeDiff = now.getTime() - createdAt.getTime();
+    const thirtyMinutes = 30 * 60 * 1000;
+    return timeDiff <= thirtyMinutes;
+  };
+
   return <div className="page-shell"><SiteHeader /><main className="portal-main">
     <div className="portal-banner"><span className="eyebrow"><Sparkles size={14} /> YOUR QUIET CORNER</span><h1 className="serif">Welcome back to<br /><em>the wall.</em></h1><p>Nothing here is tied to your name. Your presence simply lets you leave a little care behind.</p><Link className="primary-button" href="/wall"><ArrowLeft size={16} /> Return to the wall</Link></div>
     <div className="portal-prompt"><span className="portal-prompt-icon"><PenLine size={19} /></span><div><span className="eyebrow muted-eyebrow">WHENEVER YOU'RE READY</span><h2 className="serif">What's sitting with you?</h2><p>Put it into words, at your own pace. You can share it without sharing who you are.</p></div><Link href="/wall" className="portal-arrow" aria-label="Go to the wall"><ArrowRight size={19} /></Link></div>
     <div className="portal-note"><ShieldCheck size={18} /><p><b>Your account is only for keeping this space safe.</b> Your name never appears beside a confession, a comment, or a like.</p></div>
+
+    {/* 遊戲化功能區塊 */}
+    <div className="max-w-4xl mx-auto mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <LevelDisplay />
+      <DailyTasks />
+    </div>
+
+    <div className="max-w-4xl mx-auto mt-6">
+      <BadgesDisplay />
+    </div>
 
     {/* 用戶自己的告白列表 */}
     <div className="max-w-4xl mx-auto mt-8 p-6">
@@ -879,26 +964,74 @@ function UserPortalPage() {
         <div className="space-y-4">
           {myConfessions.map((confession) => (
             <div key={confession.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`category-tag tag-${categoryColors[confession.category as ConfessionCategory]}`}>
-                      {englishCategories[confession.category as ConfessionCategory]}
-                    </span>
-                    <span className="text-xs text-gray-500">{timeAgo(confession.createdAt)}</span>
-                    {confession.igStatus === 'published' && (
-                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Posted to IG</span>
-                    )}
+              {editingId === confession.id ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500 min-h-[100px]"
+                    maxLength={1200}
+                  />
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as ConfessionCategory)}
+                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                  >
+                    {categories.filter(item => item.value !== 'all' && item.value !== 'admin').map(item => (
+                      <option value={item.value} key={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={isSaving}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                    >
+                      {isSaving ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                    >
+                      Cancel
+                    </button>
                   </div>
-                  <p className="text-gray-800 whitespace-pre-wrap">{confession.content}</p>
                 </div>
-                <button
-                  onClick={() => handleDeleteConfession(confession.id)}
-                  className="ml-4 text-red-600 hover:text-red-800 text-sm font-medium"
-                >
-                  Delete
-                </button>
-              </div>
+              ) : (
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`category-tag tag-${categoryColors[confession.category as ConfessionCategory]}`}>
+                        {englishCategories[confession.category as ConfessionCategory]}
+                      </span>
+                      <span className="text-xs text-gray-500">{timeAgo(confession.createdAt)}</span>
+                      {confession.igStatus === 'published' && (
+                        <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Posted to IG</span>
+                      )}
+                      {!canEdit(confession) && (
+                        <span className="text-xs text-gray-400">Edit expired</span>
+                      )}
+                    </div>
+                    <p className="text-gray-800 whitespace-pre-wrap">{confession.content}</p>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    {canEdit(confession) && (
+                      <button
+                        onClick={() => handleEditConfession(confession)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteConfession(confession.id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
