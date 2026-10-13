@@ -473,7 +473,7 @@
   .strip-aside { display: none; }
 }
 @media (max-width: 700px) {
-  .site-header { height: 68px; }
+  .site-header { position: relative; z-index: 40; height: 68px; }
   .header-inner, .footer-inner { width: calc(100% - 38px); }
   .brand-mark { width: 32px; height: 32px; }
   .brand-type b { font-size: 16px; }
@@ -546,12 +546,26 @@
   .portal-prompt { padding: 20px 17px; gap: 12px; }
   .portal-prompt h2 { font-size: 20px; }
   .portal-prompt p { line-height: 1.6; }
+  .notification-dropdown {
+    position: fixed;
+    top: 76px;
+    right: max(12px, env(safe-area-inset-right));
+    left: auto;
+    width: min(360px, calc(100vw - 24px));
+    max-height: calc(100dvh - 88px);
+  }
   .auth-page { grid-template-columns: 1fr; }
   .auth-aside { display: none; }
   .auth-form-area { min-height: 100dvh; padding: 72px 20px 35px; }
   .auth-back { top: 23px; left: 22px; right: auto; }
 }
 @media (max-width: 390px) {
+  .header-inner { width: calc(100% - 24px); }
+  .header-actions { gap: 8px; margin-right: 6px; }
+  .brand-type b { font-size: 14px; }
+  .brand-type small { font-size: 7px; }
+  .user-chip { white-space: nowrap; gap: 5px; font-size: 10px; }
+  .user-dot { flex: 0 0 28px; }
   .header-actions .text-action { display: none; }
   .hero-copy h1 { font-size: 47px; }
   .community-label { font-size: 9px; }

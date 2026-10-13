@@ -134,6 +134,7 @@ export function Notifications() {
         onClick={() => setIsOpen(!isOpen)}
         className="icon-button relative"
         aria-label="Notifications"
+        aria-expanded={isOpen}
       >
         <Bell size={20} />
         {unreadCount > 0 && (
@@ -144,7 +145,7 @@ export function Notifications() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
+        <div className="notification-dropdown absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <h3 className="font-semibold text-gray-800">Notifications</h3>
             {unreadCount > 0 && (
