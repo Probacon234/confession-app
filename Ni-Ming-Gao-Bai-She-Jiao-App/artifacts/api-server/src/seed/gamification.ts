@@ -2,7 +2,155 @@ import {
   badgesTable,
   dailyTasksTable,
   db,
+  userBadgesTable,
+  userDailyTasksTable,
 } from "@workspace/db";
+import { and, asc, eq } from "drizzle-orm";
+
+type BadgeSeed = {
+  name: string;
+  description: string;
+  icon: string;
+  requirementType: string;
+  requirementValue: number;
+};
+
+type DailyTaskSeed = {
+  name: string;
+  description: string;
+  taskType: string;
+  targetCount: number;
+  xpReward: number;
+  isActive: boolean;
+};
+
+async function seedBadge(badge: BadgeSeed): Promise<void> {
+  await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: badgesTable.id })
+      .from(badgesTable)
+      .where(
+        and(
+          eq(badgesTable.requirementType, badge.requirementType),
+          eq(badgesTable.requirementValue, badge.requirementValue),
+        ),
+      )
+      .orderBy(asc(badgesTable.id));
+    const [canonical, ...duplicates] = existing;
+
+    if (!canonical) {
+      await tx.insert(badgesTable).values(badge);
+      return;
+    }
+
+    await tx
+      .update(badgesTable)
+      .set(badge)
+      .where(eq(badgesTable.id, canonical.id));
+
+    for (const duplicate of duplicates) {
+      const earnedBadges = await tx
+        .select()
+        .from(userBadgesTable)
+        .where(eq(userBadgesTable.badgeId, duplicate.id));
+
+      for (const earnedBadge of earnedBadges) {
+        const [existingAward] = await tx
+          .select({ id: userBadgesTable.id })
+          .from(userBadgesTable)
+          .where(
+            and(
+              eq(userBadgesTable.userId, earnedBadge.userId),
+              eq(userBadgesTable.badgeId, canonical.id),
+            ),
+          )
+          .limit(1);
+
+        if (existingAward) {
+          await tx
+            .delete(userBadgesTable)
+            .where(eq(userBadgesTable.id, earnedBadge.id));
+        } else {
+          await tx
+            .update(userBadgesTable)
+            .set({ badgeId: canonical.id })
+            .where(eq(userBadgesTable.id, earnedBadge.id));
+        }
+      }
+
+      await tx.delete(badgesTable).where(eq(badgesTable.id, duplicate.id));
+    }
+  });
+}
+
+async function seedDailyTask(task: DailyTaskSeed): Promise<void> {
+  await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: dailyTasksTable.id })
+      .from(dailyTasksTable)
+      .where(eq(dailyTasksTable.taskType, task.taskType))
+      .orderBy(asc(dailyTasksTable.id));
+    const [canonical, ...duplicates] = existing;
+
+    if (!canonical) {
+      await tx.insert(dailyTasksTable).values(task);
+      return;
+    }
+
+    await tx
+      .update(dailyTasksTable)
+      .set(task)
+      .where(eq(dailyTasksTable.id, canonical.id));
+
+    for (const duplicate of duplicates) {
+      const duplicateProgress = await tx
+        .select()
+        .from(userDailyTasksTable)
+        .where(eq(userDailyTasksTable.taskId, duplicate.id));
+
+      for (const progress of duplicateProgress) {
+        const [canonicalProgress] = await tx
+          .select()
+          .from(userDailyTasksTable)
+          .where(
+            and(
+              eq(userDailyTasksTable.userId, progress.userId),
+              eq(userDailyTasksTable.taskId, canonical.id),
+              eq(userDailyTasksTable.date, progress.date),
+            ),
+          )
+          .limit(1);
+
+        if (canonicalProgress) {
+          const mergedProgress = Math.min(
+            task.targetCount,
+            Math.max(canonicalProgress.progress, progress.progress),
+          );
+          const completed = canonicalProgress.completed || progress.completed;
+          const completedAt =
+            canonicalProgress.completedAt ?? progress.completedAt;
+
+          await tx
+            .update(userDailyTasksTable)
+            .set({ progress: mergedProgress, completed, completedAt })
+            .where(eq(userDailyTasksTable.id, canonicalProgress.id));
+          await tx
+            .delete(userDailyTasksTable)
+            .where(eq(userDailyTasksTable.id, progress.id));
+        } else {
+          await tx
+            .update(userDailyTasksTable)
+            .set({ taskId: canonical.id })
+            .where(eq(userDailyTasksTable.id, progress.id));
+        }
+      }
+
+      await tx
+        .delete(dailyTasksTable)
+        .where(eq(dailyTasksTable.id, duplicate.id));
+    }
+  });
+}
 
 export async function seedGamificationData() {
   console.log("Seeding gamification data...");
@@ -75,10 +223,7 @@ export async function seedGamificationData() {
   ];
 
   for (const badge of badges) {
-    await db
-      .insert(badgesTable)
-      .values(badge)
-      .onConflictDoNothing();
+    await seedBadge(badge);
   }
 
   console.log("Seeded badges");
@@ -120,10 +265,7 @@ export async function seedGamificationData() {
   ];
 
   for (const task of dailyTasks) {
-    await db
-      .insert(dailyTasksTable)
-      .values(task)
-      .onConflictDoNothing();
+    await seedDailyTask(task);
   }
 
   console.log("Seeded daily tasks");
