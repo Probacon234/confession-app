@@ -15,14 +15,15 @@ export async function generateConfessionCard(id: number | string, content: strin
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // 標頭 - 使用支持 emoji 的字体
+  // 標頭
   ctx.fillStyle = '#a855f7';
-  ctx.font = 'bold 44px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+  ctx.font = 'bold 44px Arial, sans-serif';
   ctx.fillText(`CONFESSION #${id}`, 100, 160);
 
-  // 告白文字 - 使用支持 emoji 的字体
+  // 告白文字 - 使用 Arial 字体并设置更好的字间距
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '36px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+  ctx.font = '36px Arial, sans-serif';
+  ctx.letterSpacing = '0px'; // 明确设置字间距为 0
   const maxWidth = 880;
   const lineHeight = 54;
   const startX = 100;
