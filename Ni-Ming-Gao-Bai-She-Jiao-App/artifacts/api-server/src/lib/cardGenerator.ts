@@ -8,6 +8,11 @@ export async function generateConfessionCard(id: number | string, content: strin
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
+  // 预处理文本：将智能引号替换为普通引号
+  const normalizedContent = content
+    .replace(/[\u2018\u2019\u201B\u2032]/g, "'")  // 替换各种撇号为普通撇号
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"'); // 替换各种引号为普通引号
+
   // 背景：深色漸層
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#0f172a');
@@ -17,19 +22,21 @@ export async function generateConfessionCard(id: number | string, content: strin
 
   // 標頭
   ctx.fillStyle = '#a855f7';
-  ctx.font = 'bold 44px system-ui, -apple-system, sans-serif';
+  ctx.font = 'bold 44px Helvetica, Arial, sans-serif';
+  ctx.textBaseline = 'top';
   ctx.fillText(`CONFESSION #${id}`, 100, 160);
 
-  // 告白文字 - 使用系统字体
+  // 告白文字 - 使用 Helvetica 字体
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '36px system-ui, -apple-system, sans-serif';
+  ctx.font = '36px Helvetica, Arial, sans-serif';
+  ctx.textBaseline = 'top';
   const maxWidth = 880;
   const lineHeight = 54;
   const startX = 100;
   let startY = 260;
 
   // 按词分割而不是按字符分割，避免缩写词的间距问题
-  const words = (content || '').split(' ');
+  const words = (normalizedContent || '').split(' ');
   let currentLine = '';
 
   for (let i = 0; i < words.length; i++) {
