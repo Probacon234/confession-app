@@ -15,14 +15,14 @@ export async function generateConfessionCard(id: number | string, content: strin
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // 標頭
+  // 標頭 - 使用支持 emoji 的字体
   ctx.fillStyle = '#a855f7';
-  ctx.font = 'bold 44px sans-serif';
+  ctx.font = 'bold 44px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
   ctx.fillText(`CONFESSION #${id}`, 100, 160);
 
-  // 告白文字
+  // 告白文字 - 使用支持 emoji 的字体
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '36px sans-serif';
+  ctx.font = '36px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
   const maxWidth = 880;
   const lineHeight = 54;
   const startX = 100;
@@ -44,11 +44,6 @@ export async function generateConfessionCard(id: number | string, content: strin
     }
   }
   ctx.fillText(currentLine, startX, startY);
-
-  // 底部標示
-  ctx.fillStyle = '#64748b';
-  ctx.font = '28px sans-serif';
-  ctx.fillText('dream4u.my', 100, height - 100);
 
   // 存入公開目錄
   const publicCardsDir = path.join(process.cwd(), 'public', 'cards');
