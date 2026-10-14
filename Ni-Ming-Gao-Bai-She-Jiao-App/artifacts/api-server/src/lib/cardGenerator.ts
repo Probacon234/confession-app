@@ -17,23 +17,23 @@ export async function generateConfessionCard(id: number | string, content: strin
 
   // 標頭
   ctx.fillStyle = '#a855f7';
-  ctx.font = 'bold 44px Arial, sans-serif';
+  ctx.font = 'bold 44px system-ui, -apple-system, sans-serif';
   ctx.fillText(`CONFESSION #${id}`, 100, 160);
 
-  // 告白文字 - 使用 Arial 字体并设置更好的字间距
+  // 告白文字 - 使用系统字体
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '36px Arial, sans-serif';
-  ctx.letterSpacing = '0px'; // 明确设置字间距为 0
+  ctx.font = '36px system-ui, -apple-system, sans-serif';
   const maxWidth = 880;
   const lineHeight = 54;
   const startX = 100;
   let startY = 260;
 
-  const words = (content || '').split('');
+  // 按词分割而不是按字符分割，避免缩写词的间距问题
+  const words = (content || '').split(' ');
   let currentLine = '';
 
   for (let i = 0; i < words.length; i++) {
-    const testLine = currentLine + words[i];
+    const testLine = currentLine + (currentLine ? ' ' : '') + words[i];
     const metrics = ctx.measureText(testLine);
     if (metrics.width > maxWidth && i > 0) {
       ctx.fillText(currentLine, startX, startY);
