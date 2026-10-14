@@ -20,15 +20,15 @@ export async function generateConfessionCard(id: number | string, content: strin
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  // 標頭
+  // 標頭 - 使用等宽字体
   ctx.fillStyle = '#a855f7';
-  ctx.font = 'bold 44px Helvetica, Arial, sans-serif';
+  ctx.font = 'bold 44px "Courier New", Courier, monospace';
   ctx.textBaseline = 'top';
   ctx.fillText(`CONFESSION #${id}`, 100, 160);
 
-  // 告白文字 - 使用 Helvetica 字体
+  // 告白文字 - 使用等宽字体
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '36px Helvetica, Arial, sans-serif';
+  ctx.font = '36px "Courier New", Courier, monospace';
   ctx.textBaseline = 'top';
   const maxWidth = 880;
   const lineHeight = 54;
