@@ -8,10 +8,11 @@ export async function generateConfessionCard(id: number | string, content: strin
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // 预处理文本：将智能引号替换为普通引号
+  // 预处理文本：将所有撇号和引号统一处理为普通 ASCII 字符
   const normalizedContent = content
-    .replace(/[\u2018\u2019\u201B\u2032]/g, "'")  // 替换各种撇号为普通撇号
-    .replace(/[\u201C\u201D\u201E\u2033]/g, '"'); // 替换各种引号为普通引号
+    .replace(/[\u2018\u2019\u201B\u2032\u02BC\u02BB\u02B9\u02BD]/g, "'")  // 替换所有类型的撇号为普通撇号
+    .replace(/[\u201C\u201D\u201E\u2033\u201F\u00AB\u00BB]/g, '"') // 替换所有类型的引号为普通引号
+    .replace(/['`]/g, "'"); // 确保所有撇号都是普通撇号
 
   // 背景：深色漸層
   const gradient = ctx.createLinearGradient(0, 0, width, height);
