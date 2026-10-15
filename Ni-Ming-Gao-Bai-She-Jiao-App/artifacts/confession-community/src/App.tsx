@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { ClerkProvider, SignIn, SignUp, Show, useClerk, useUser, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
@@ -844,13 +844,17 @@ function UserPortalPage() {
   }, []);
 
   const handleDeleteConfession = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this confession? This action cannot be undone.")) {
+    const target = myConfessions.find((c) => c.id === id);
+    const onIg = target?.igStatus === "published";
+    if (!window.confirm(onIg
+      ? "Delete this confession from the website?\n\nIt was already posted on Instagram. Deleting it here will NOT remove the Instagram post. Please contact the admins if you want that taken down too."
+      : "Are you sure you want to delete this confession? This action cannot be undone.")) {
       return;
     }
 
     try {
       const token = await getToken();
-      const res = await fetch(`/api/moderation/confessions/${id}`, {
+      const res = await fetch(`/api/confessions/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1135,17 +1139,50 @@ function ConfessionPage() {
   </main><Footer />{reportOpen && <ReportModal id={id} close={() => setReportOpen(false)} onSuccess={() => setNotice('Thank you. Your report has been received with care.')} />}</div>;
 }
 
+// ---------- 情緒光譜：打字時全螢幕背景光暈會跟著情緒變色、隨字數變亮 ----------
+type Mood = 'sweet' | 'night' | 'warm' | 'calm';
+type MoodChoice = 'auto' | Mood;
+const MOOD_LABELS: Record<Mood, string> = { sweet: 'Sweet', night: 'Late night', warm: 'Searching', calm: 'Calm' };
+const MOOD_WORDS: Record<Exclude<Mood, 'calm'>, RegExp> = {
+  sweet: /喜歡|喜欢|愛你|爱你|暗戀|暗恋|心動|心动|告白|想你|love|crush|miss you|sweet|heart|cinta|sayang|suka|rindu|\u2764|\u{1F495}|\u{1F496}/giu,
+  night: /失眠|睡不著|睡不着|深夜|孤獨|孤独|難過|难过|崩潰|崩溃|壓力|压力|累|哭|寂寞|lonely|cry|tired|sad|stress|depress|insomnia|can't sleep|sedih|penat|sunyi|letih/giu,
+  warm: /尋人|寻人|找人|誰知道|谁知道|有人認識|有人认识|求助|幫忙|帮忙|looking for|anyone know|find|lost|missing|help|cari|tolong|ada sesiapa|hilang/giu,
+};
+function detectMood(text: string, category: ConfessionCategory): Mood {
+  const score: Record<Exclude<Mood, 'calm'>, number> = { sweet: 0, night: 0, warm: 0 };
+  (Object.keys(MOOD_WORDS) as Array<Exclude<Mood, 'calm'>>).forEach(key => {
+    score[key] = (text.match(MOOD_WORDS[key]) ?? []).length;
+  });
+  if (category === 'love') score.sweet += 0.5;
+  const hour = new Date().getHours();
+  if (text.trim() && hour >= 0 && hour < 5) score.night += 0.5; // 深夜自然偏藍
+  const best = (Object.keys(score) as Array<Exclude<Mood, 'calm'>>).sort((a, b) => score[b] - score[a])[0];
+  return score[best] > 0 ? best : 'calm';
+}
+
+function MoodBackground({ mood, intensity }: { mood: Mood; intensity: number }) {
+  return <div className="mood-bg" aria-hidden="true" style={{ '--mi': intensity } as CSSProperties}>
+    {(['sweet', 'night', 'warm'] as const).map(key => <div key={key} className={`mood-layer mood-${key} ${mood === key ? 'on' : ''}`}><i /><i /><i /></div>)}
+  </div>;
+}
+
 function ComposeModal({ close, onSubmit, pending, error, isAdmin }: { close: () => void; onSubmit: (data: { content: string; category: ConfessionCategory }) => void; pending: boolean; error: boolean; isAdmin: boolean }) {
   const { isSignedIn } = useUser();
   const [text, setText] = useState('');
   const [category, setCategory] = useState<ConfessionCategory>('life');
   const [signInPrompt, setSignInPrompt] = useState(false);
+  const [moodChoice, setMoodChoice] = useState<MoodChoice>('auto');
+  const detected = detectMood(text, category);
+  const mood: Mood = moodChoice === 'auto' ? detected : moodChoice;
+  const intensity = Math.min(1, text.length / 280);
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!isSignedIn) { setSignInPrompt(true); return; }
     if (text.trim()) onSubmit({ content: text.trim(), category });
   };
-  return <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && close()}>
+  return <>
+  <MoodBackground mood={mood} intensity={intensity} />
+  <div className={`modal-backdrop ${mood !== 'calm' ? 'has-mood' : ''}`} role="presentation" onMouseDown={event => event.target === event.currentTarget && close()}>
     <section className="compose-modal" role="dialog" aria-modal="true" aria-labelledby="compose-title">
       <button className="modal-close" onClick={close} aria-label="Close compose dialog" data-testid="button-close-compose"><X size={20} /></button>
       <span className="eyebrow muted-eyebrow">A PRIVATE THOUGHT, HELD IN PUBLIC</span>
@@ -1155,6 +1192,12 @@ function ComposeModal({ close, onSubmit, pending, error, isAdmin }: { close: () 
         <label className="field-label" htmlFor="confession-text">Your words</label>
         <textarea id="confession-text" className="compose-textarea" maxLength={1200} value={text} onChange={event => setText(event.target.value)} placeholder="I've been meaning to say…" autoFocus data-testid="input-confession-content" />
         <div className="form-meta"><span>Take your time</span><span>{text.length}/1200</span></div>
+        <label className="field-label" id="mood-label">How does it feel?</label>
+        <div className="mood-chips" role="radiogroup" aria-labelledby="mood-label">
+          {(['auto', 'sweet', 'night', 'warm', 'calm'] as const).map(key => <button type="button" key={key} role="radio" aria-checked={moodChoice === key} className={`mood-chip mood-chip-${key === 'auto' ? mood : key} ${moodChoice === key ? 'chip-on' : ''}`} onClick={() => setMoodChoice(key)} data-testid={`mood-${key}`}>
+            <span className="mood-dot" />{key === 'auto' ? `Auto · ${MOOD_LABELS[detected]}` : MOOD_LABELS[key]}
+          </button>)}
+        </div>
         <label className="field-label" htmlFor="confession-category">What does it touch?</label>
         <select id="confession-category" value={category} onChange={event => setCategory(event.target.value as ConfessionCategory)} data-testid="select-confession-category">
           {categories.filter(item => item.value !== 'all' && (item.value !== 'admin' || isAdmin)).map(item => <option value={item.value} key={item.value}>{item.value === 'admin' ? 'ADMIN' : `${item.label} · ${englishCategories[item.value as ConfessionCategory]}`}</option>)}
@@ -1164,7 +1207,8 @@ function ComposeModal({ close, onSubmit, pending, error, isAdmin }: { close: () 
         <div className="modal-submit-row"><span className="privacy-hint"><ShieldCheck size={15} /> Always anonymous</span><button type="submit" className="primary-button" disabled={!text.trim() || pending} data-testid="button-publish-confession">{pending ? 'Placing it…' : 'Place it on the wall'} <ArrowRight size={15} /></button></div>
       </form>
     </section>
-  </div>;
+  </div>
+  </>;
 }
 
 function ReportModal({ id, close, onSuccess }: { id: number; close: () => void; onSuccess: () => void }) {

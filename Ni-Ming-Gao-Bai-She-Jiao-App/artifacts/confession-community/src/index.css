@@ -810,3 +810,41 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+
+/* ===================== 情緒光譜 Dynamic Mood Gradient ===================== */
+.mood-bg { position: fixed; inset: 0; z-index: 49; pointer-events: none; overflow: hidden; }
+.mood-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; }
+.mood-layer.on { opacity: calc(.5 + var(--mi, 0) * .5); }
+.mood-layer i { position: absolute; width: 64vmax; height: 64vmax; border-radius: 50%; scale: calc(.7 + var(--mi, 0) * .6); transition: scale 1.2s ease; animation: mood-drift 16s ease-in-out infinite alternate; }
+.mood-layer i:nth-child(1) { left: -18vmax; top: -22vmax; }
+.mood-layer i:nth-child(2) { right: -24vmax; top: 10vh; animation-duration: 21s; animation-delay: -6s; }
+.mood-layer i:nth-child(3) { left: 8vw; bottom: -30vmax; animation-duration: 26s; animation-delay: -11s; }
+@keyframes mood-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(7vw, -5vh, 0); } }
+/* 甜美告白：流動的粉紫霓虹 */
+.mood-sweet { background: linear-gradient(135deg, #230a38, #3d0f4a); }
+.mood-sweet i:nth-child(1) { background: radial-gradient(circle, rgba(255,72,170,.85), transparent 62%); }
+.mood-sweet i:nth-child(2) { background: radial-gradient(circle, rgba(150,95,255,.8), transparent 62%); }
+.mood-sweet i:nth-child(3) { background: radial-gradient(circle, rgba(255,140,220,.65), transparent 62%); }
+/* 深夜吐槽：孤獨的深海藍黑微光 */
+.mood-night { background: linear-gradient(160deg, #01040b, #06182f); }
+.mood-night i:nth-child(1) { background: radial-gradient(circle, rgba(36,99,176,.6), transparent 62%); }
+.mood-night i:nth-child(2) { background: radial-gradient(circle, rgba(18,66,120,.65), transparent 62%); }
+.mood-night i:nth-child(3) { background: radial-gradient(circle, rgba(70,140,200,.32), transparent 62%); }
+/* 熱血尋人：亮橙色暖光 */
+.mood-warm { background: linear-gradient(150deg, #331300, #5c2400); }
+.mood-warm i:nth-child(1) { background: radial-gradient(circle, rgba(255,140,30,.9), transparent 62%); }
+.mood-warm i:nth-child(2) { background: radial-gradient(circle, rgba(255,92,40,.75), transparent 62%); }
+.mood-warm i:nth-child(3) { background: radial-gradient(circle, rgba(255,200,80,.6), transparent 62%); }
+.modal-backdrop.has-mood { background: transparent; backdrop-filter: none; }
+.modal-backdrop { transition: background-color 1s ease; }
+.compose-modal { z-index: 1; }
+.mood-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.mood-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--muted-foreground)); border-radius: 999px; padding: 7px 11px; font: 600 10px var(--app-font-sans); cursor: pointer; transition: background-color .2s ease, color .2s ease, border-color .2s ease; }
+.mood-chip:hover { border-color: hsl(var(--primary) / .5); }
+.mood-chip.chip-on { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: transparent; }
+.mood-dot { width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--muted-foreground)); }
+.mood-chip-sweet .mood-dot { background: #ec4899; }
+.mood-chip-night .mood-dot { background: #2f6fb5; }
+.mood-chip-warm .mood-dot { background: #ff8a1e; }
+.mood-chip-calm .mood-dot { background: #7fa690; }
+@media (prefers-reduced-motion: reduce) { .mood-layer i { animation: none; } }

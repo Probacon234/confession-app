@@ -635,4 +635,41 @@ router.put("/confessions/:id", async (req, res): Promise<void> => {
   }
 });
 
+// ==========================================
+// 用戶刪除自己的告白（只有作者本人；相關讚／留言／檢舉會一起被刪）
+// ==========================================
+router.delete("/confessions/:id", async (req, res): Promise<void> => {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const confessionId = Number(req.params.id);
+  if (!Number.isInteger(confessionId) || confessionId <= 0) {
+    res.status(400).json({ error: "Invalid confession ID" });
+    return;
+  }
+
+  try {
+    const [confession] = await db
+      .select({ authorId: confessionsTable.authorId, igStatus: confessionsTable.igStatus })
+      .from(confessionsTable)
+      .where(eq(confessionsTable.id, confessionId))
+      .limit(1);
+
+    if (!confession) {
+      res.status(404).json({ error: "Confession not found" });
+      return;
+    }
+    if (confession.authorId !== userId) {
+      res.status(403).json({ error: "You can only delete your own confessions" });
+      return;
+    }
+
+    await db.delete(confessionsTable).where(eq(confessionsTable.id, confessionId));
+    res.json({ success: true, onInstagram: confession.igStatus === "published" });
+  } catch (error: any) {
+    console.error("Failed to delete confession:", error);
+    res.status(500).json({ error: "Failed to delete confession" });
+  }
+});
+
 export default router;
