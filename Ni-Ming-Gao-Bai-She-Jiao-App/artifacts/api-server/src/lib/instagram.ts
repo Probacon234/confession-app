@@ -4,6 +4,11 @@ import { countConfessionPages } from "./confessionImage";
 
 const API = "https://graph.instagram.com/v23.0";
 
+// 宣傳圖：放在網站的 public 資料夾，網址是 PUBLIC_URL + /promo-slide.jpg
+// 想暫時關掉，在 Render 的環境變數加上 IG_PROMO_SLIDE=off
+const PROMO_PATH = "/promo-slide.jpg";
+const MAX_CAROUSEL_ITEMS = 10; // IG 輪播最多 10 張
+
 function env(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env var ${name}`);
@@ -60,35 +65,61 @@ export async function publishConfessionToInstagram(confessionId: number): Promis
       https://docs.google.com/document/d/1QD_jZMU0uUYMhxdyYMvWNroOYCUCNmTkLOs7sT0Y_CY/edit?tab=t.0
       #Confession${confessionId}\n\n#WeAreunikl #ConfessionMIIT #ConfessionMIIT2026 #uniklmiit #unikl`;
 
-  let creationId: string;
+  // 每一張圖的網址：告白的每一頁，最後再加一張宣傳圖（放不下 10 張就不加）
+  const urls: string[] = [];
+  for (let p = 1; p <= pages; p++) urls.push(imageUrl(p));
+  const addPromo = process.env.IG_PROMO_SLIDE !== "off" && urls.length + 1 <= MAX_CAROUSEL_ITEMS;
 
-  if (pages <= 1) {
-    // 單張圖
+  const createSingle = async (): Promise<string> => {
     const created = await igPost(
       `/${igUserId}/media`,
       { image_url: imageUrl(1), caption },
       token,
     );
-    creationId = created.id;
-  } else {
-    // 輪播：每一頁各建一個子項目（依頁碼順序）
-    const childIds: string[] = [];
-    for (let p = 1; p <= pages; p++) {
-      const child = await igPost(
-        `/${igUserId}/media`,
-        { image_url: imageUrl(p), is_carousel_item: "true" },
-        token,
-      );
-      childIds.push(child.id);
-    }
-    for (const id of childIds) await waitForContainer(id, token);
-
-    const carousel = await igPost(
+    return created.id as string;
+  };
+  const createChild = async (url: string): Promise<string> => {
+    const child = await igPost(
       `/${igUserId}/media`,
-      { media_type: "CAROUSEL", children: childIds.join(","), caption },
+      { image_url: url, is_carousel_item: "true" },
       token,
     );
-    creationId = carousel.id;
+    return child.id as string;
+  };
+
+  let creationId: string;
+
+  if (urls.length === 1 && !addPromo) {
+    // 單張圖，而且不加宣傳圖
+    creationId = await createSingle();
+  } else {
+    // 輪播：依序建立每一頁的子項目
+    const childIds: string[] = [];
+    for (const url of urls) childIds.push(await createChild(url));
+
+    // 最後一張：宣傳圖。就算它失敗，告白本身也一定要發得出去
+    if (addPromo) {
+      try {
+        const promoId = await createChild(`${base}${PROMO_PATH}`);
+        await waitForContainer(promoId, token);
+        childIds.push(promoId);
+      } catch (err) {
+        console.warn("[IG] Promo slide skipped:", err);
+      }
+    }
+
+    if (childIds.length < 2) {
+      // 只有一頁、宣傳圖又失敗：退回成單張圖
+      creationId = await createSingle();
+    } else {
+      for (const id of childIds) await waitForContainer(id, token);
+      const carousel = await igPost(
+        `/${igUserId}/media`,
+        { media_type: "CAROUSEL", children: childIds.join(","), caption },
+        token,
+      );
+      creationId = carousel.id;
+    }
   }
 
   await waitForContainer(creationId, token);
