@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { Router, type IRouter } from "express";
 import { confessionsTable, db } from "@workspace/db";
 import { renderConfession } from "../lib/confessionImage";
+import { normalizePunctuation } from "../lib/normalizeText";
 
 const router: IRouter = Router();
 
@@ -30,7 +31,7 @@ router.get("/:file", async (req, res): Promise<void> => {
   res
     .type("image/jpeg")
     .set("Cache-Control", "public, max-age=3600")
-    .send(renderConfession(post.content, post.id, post.category, page));
+    .send(renderConfession(normalizePunctuation(post.content), post.id, post.category, page));
 });
 
 export default router;
