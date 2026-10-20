@@ -61,8 +61,7 @@ export async function publishConfessionToInstagram(confessionId: number): Promis
 
   const caption = `This is unofficial account, all Website is Make by uniklMIIT Student.You can post on website and it will synchronized update to IG
       https://dream4u.my/
-      FAQ Link at below
-      https://docs.google.com/document/d/1QD_jZMU0uUYMhxdyYMvWNroOYCUCNmTkLOs7sT0Y_CY/edit?tab=t.0
+      FAQ Link at bio
       #Confession${confessionId}\n\n#WeAreunikl #ConfessionMIIT #ConfessionMIIT2026 #uniklmiit #unikl`;
 
   // 每一張圖的網址：告白的每一頁，最後再加一張宣傳圖（放不下 10 張就不加）
